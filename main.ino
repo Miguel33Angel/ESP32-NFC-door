@@ -21,7 +21,7 @@
 #endif
 
 //Defines for RELAY
-#define LED_RELAY 4
+#define PIN_RELAY 4
 
 
 // Includes for the Wifi access point
@@ -79,8 +79,10 @@ bool newUnauthCard = false;
 
 void setup() {
   pinMode(PIN_RELAY, OUTPUT);
-  Serial.begin(115200);
-
+  digitalWrite(PIN_RELAY, HIGH);
+  if (DEBUG == 1){
+    Serial.begin(115200);
+  }
   //Spiffs setup
   if(!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)){
     debugln("SPIFFS Mount Failed");
