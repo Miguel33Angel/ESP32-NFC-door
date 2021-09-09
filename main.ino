@@ -121,9 +121,8 @@ void loop() {
     if (rfid.PICC_ReadCardSerial()) {   // and if NUID has been readed
       if(isValidUID(rfid.uid.uidByte)){ //It's an AUTH UID:
         debug("Authorized Tag with UID:");
-        //TODO: Do Relay control.
         digitalWrite(PIN_RELAY, LOW);   // turn the LED on (HIGH is the voltage level)
-        delay(500);                       // wait for a second
+        delay(2000);                       // wait for a second
         digitalWrite(PIN_RELAY, HIGH);    // turn the LED off by making the voltage LOW
       }else{                             //It's an UNAUTH UID:
         debug("Unauthorized Tag with UID:");
