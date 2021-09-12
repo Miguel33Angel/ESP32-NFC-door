@@ -13,7 +13,10 @@ This program SHOULD NEVER be used to protect anything remotly valuable. It's mea
 - The Access point to grant acces to editing which cards are authorized, has only one password and if not set up correctly can be cracked. (And it's based of a basic connecting, doesn't have encryption per se).
 - If the circuit is known and the relay or esp32 is close to the exterior, activating the relay with some magnet or by inducing 3.3v on the S terminal would be enough to open the door bypassing the esp32 altogheter.
 
-
+SCHEMATIC:
+![Wiring](https://i.imgur.com/YJC1gyD.png)
+In case of changing pins, the defines in the beginning of the main.ino should be change accordingly.
+Pins 5, 18, 19, 23 should be SPI pins (SS, SCK, MISO, MOSI respectivly) and of the same group of SPI, if the esp has various (As mine had VSPI and HSPI pins)
 
 
 
