@@ -66,9 +66,11 @@ bool saveNextData = false; //To check if we need to save the data the user is se
 
 #define BUFFER_SIZE 100
 char bufferCurrentLine[100];
-int nCurrent = 0; //Number of letters used in currentLine
+byte nCurrent = 0; //Number of letters used in currentLine
 char bufferSavedData[100]; 
-int nSaved = 0; //Number of letters used in currentLine
+byte nSaved = 0; //Number of letters used in currentLine
+char bufferTemporal[100];
+byte nTemp = 0;
 
 enum action {add, del}; //add=0, del=1;
 enum action Data_Action;
@@ -109,7 +111,7 @@ bool isSameUID(byte *UID, byte *AuthUID) {
 //Uses file "UID_PATH" with stored authorizedUID to check against
 //memoryUID doesn't have delimitators. Every byte is followed by the next one
 //Every i is for every 4 values of the file memoryUID.
-//Doesn't make sense for example to skip checking the last value if third is wrong
+//Doesn't make sense for example to check the last value if third is wrong
 bool isValidUID(byte *UID){
   bool r = false;
   File memoryUID = SPIFFS.open(UID_PATH, FILE_READ); //Spiffs is the type of file system
@@ -280,17 +282,16 @@ byte addChar(char* arr, byte n, char c){
   return n;
 }
 
-
-char * getSubString(char* arr, byte n, byte first_char, byte last_char){
-  char s[100]; //TODO: change magic numbers
+//TODO: it still doesn't work.
+byte getSubStringAndPutInArr(char* arr, byte n, byte first_char, byte last_char, char* empty_arr){
   byte j=0;
   for(byte i=0; i<n; i++){
     if(first_char<=i and i<(n-last_char)){
-        s[j]=arr[i];
+        empty_arr[j]=arr[i];
         j++;
       }
   }
-  return s; //TODO: problem, how tf is supossed to know until when to print? For now don't use it
+  return j;
 }
 
 
@@ -441,8 +442,11 @@ void loop() {
                   
                 }
                 l=' '; //Reset condition for l
-                //Put the name to be displayed
-                client.print(getSubString(bufferCurrentLine,nCurrent,0,1)); //TODO: for now it won't work
+                //Put the name to be displayed in bufferTemporal
+                //TODO: Do I really need another buffer? can't everything be done with 2?
+                nTemp = getSubStringAndPutInArr(bufferCurrentLine,nCurrent,0,1,bufferTemporal);
+                //TODO: for now, will it display 100 char, or only used ones? Maybe creating a function that makes a malloc for printing then frees up the space
+                client.print(bufferTemporal); 
                 client.print(F(" - "));
               
                 byte currentByte;         //Byte of UID to be readen
