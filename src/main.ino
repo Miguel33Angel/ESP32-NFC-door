@@ -84,6 +84,231 @@ byte VersionRFID=0;
 unsigned long  last_time_checked=0;
 unsigned long now=0;
 
+//*****************************FUNCTIONS DEFINITIONS**************************************
+
+//Function for Hex bytes of the NFC
+void printHex(byte *buffer) {
+  for (byte i = 0; i < UID_SIZE; i++) {
+    if (DEBUG == 1){
+      Serial.print(buffer[i] < 0x10 ? " 0" : " ");
+      Serial.print(buffer[i], HEX);
+    }
+  }
+}
+
+bool isSameUID(byte *UID, byte *AuthUID) {
+  bool r = false;
+  byte i = 0;
+  while(not r and i < UID_SIZE){
+      r = AuthUID[i] == UID[i];
+      i++;
+    }
+  return r;
+}
+
+//Uses file "UID_PATH" with stored authorizedUID to check against
+//memoryUID doesn't have delimitators. Every byte is followed by the next one
+//Every i is for every 4 values of the file memoryUID.
+//Doesn't make sense for example to skip checking the last value if third is wrong
+bool isValidUID(byte *UID){
+  bool r = false;
+  File memoryUID = SPIFFS.open(UID_PATH, FILE_READ); //Spiffs is the type of file system
+  
+  if(!memoryUID){
+    debugln(F("- failed to open file UID in checking if UID is auth or not"));
+    return false;
+  }
+  
+  byte authorizedUID [UID_SIZE];
+  byte i=0;
+  //available() tells us if the file still has info. With it no need to check number of UIDs.
+  while(not r and memoryUID.available()){
+      i=0;
+      while(i<UID_SIZE and memoryUID.available()){ 
+        authorizedUID[i]= memoryUID.read();
+        i+=1;
+      }
+      r = isSameUID(UID, authorizedUID);
+  }
+  memoryUID.close();
+  return r;
+}
+
+//Char one
+bool AddUser(byte *lastUnauthUID, char* arr, byte n){ 
+  
+  if(not newUnauthCard){
+    debugln(F("No hay nuevo usuario que añadir"));
+    return false;
+  }
+  File memoryUID = SPIFFS.open(UID_PATH, FILE_APPEND);
+  File memoryNAMES = SPIFFS.open(NAMES_PATH, FILE_APPEND);
+
+  if(!memoryUID or !memoryNAMES){
+    debugln(F("- failed to open files while adding user"));
+    return false;
+  }
+  
+  for(byte i=0;i<UID_SIZE;i++){
+    memoryUID.write(lastUnauthUID[i]);
+  }
+  for(byte i=0;i<n;i++){
+    memoryNAMES.print(arr[i]);
+  }
+  memoryNAMES.print('\n');
+
+  memoryUID.close();
+  memoryNAMES.close();
+
+  newUnauthCard = false;
+  
+  debug(F(" Freeding up space. FreeHeap: "));
+  //debugln(ESP.getFreeHeap()); TODO: check what it did
+  return true;
+}
+
+bool deleteUser(int del_n){
+  if(del_n<0){
+    debugln(F("Invalid number to delete"));
+    return false;
+  }
+  File memoryUID = SPIFFS.open(UID_PATH, FILE_READ);
+  File tempUIDfile = SPIFFS.open(UID_PATH_TEMP, FILE_WRITE);
+
+  if(!memoryUID or !tempUIDfile){
+    debugln(F("- failed to open UID files while deleting user"));
+    return false;
+  }
+  byte n=0;
+  
+  byte i=0;
+  byte b=0;
+  //available() tells us if the file still has info to read
+  while(memoryUID.available()){
+    i=0;
+    //If n it's different than del_n then read bytes and write them into the other file. If they are the same, just skip those 4 bytes
+    while(i<UID_SIZE and memoryUID.available()){ 
+        //We always have to read the bytes, even when n == del_d 
+        b = memoryUID.read();
+        if(n != del_n){ 
+          tempUIDfile.write(b);
+        }
+        i+=1;
+    }
+    n++;
+  }
+  memoryUID.close();
+  tempUIDfile.close();
+  //tempUIDfile has been constructed
+
+  File memoryNAMES = SPIFFS.open(NAMES_PATH, FILE_READ);
+  File tempNAMESfile = SPIFFS.open(NAMES_PATH_TEMP, FILE_WRITE);
+
+  if(!memoryNAMES or !tempNAMESfile){
+    debugln(F("- failed to open NAMES files while deleting user"));
+    return false;
+  }
+  
+  char c;
+  n=0;
+  //available() tells us if the file still has info to read
+  while(memoryNAMES.available()){
+    while(memoryNAMES.available() and c !='\n'){ //So when we see a char that is '\0' then the string has ended-> write it down then sum 1 to n, and continue
+      c = memoryNAMES.read();
+      if(n != del_n){
+        tempNAMESfile.write(c);
+      }
+    }
+    c =' '; //Stop c from being '\0' to continue reading
+    n++;
+  }
+
+  memoryNAMES.close();
+  tempNAMESfile.close();
+
+  //tempNAMESfile has been constructed
+  //Now we do the critical part. 1 Delete file NAMES_PATH. 2 Change names of NAMES_PATH_TEMP to NAMES_PATH. Same with UID. If it's interrupted after deleting it's gonna lose info.
+  //TODO check if operations have been done succesfully, and do exception case. Return false from function.
+  SPIFFS.remove(NAMES_PATH);
+  SPIFFS.remove(UID_PATH);
+  SPIFFS.rename(UID_PATH_TEMP, UID_PATH);
+  SPIFFS.rename(NAMES_PATH_TEMP, NAMES_PATH);
+  
+  return true;
+}
+
+
+void restart(){
+  debugln(F("ESP Restarting..."));
+  delay(100);
+  ESP.restart();
+}
+
+//Char array functions needed
+//Gets array, lenght, n1 and n2, and deletes first n1 char and last n2 char.
+//Example arr is "123456789", and we call with (arr,9,3,2); arr->"23456" and returns n=5 which is the new lenght.
+byte substituteBySubString(char* arr, byte n, byte first_char, byte last_char){
+  byte j=0;
+  for(byte i=0; i<n; i++){
+    if(first_char<=i and i<(n-last_char)){
+        arr[j]=arr[i];
+        j++;
+      }
+  }
+
+  n=n-j+1;
+  return n;
+}
+  
+//Convert char array to a number.
+int charArrToInt(char* arr, byte n){
+  int r=0;
+  for(byte i=0; i < n; i++){
+    r = 10*r + (arr[i] - '0');
+  }
+
+  return r;
+}
+
+
+byte addChar(char* arr, byte n, char c){
+  if(n<100){
+    arr[n]=c;
+    n=n+1;
+
+  } //TODO: Change magic number to a define
+  return n;
+}
+
+
+char * getSubString(char* arr, byte n, byte first_char, byte last_char){
+  char s[100]; //TODO: change magic numbers
+  byte j=0;
+  for(byte i=0; i<n; i++){
+    if(first_char<=i and i<(n-last_char)){
+        s[j]=arr[i];
+        j++;
+      }
+  }
+  return s; //TODO: problem, how tf is supossed to know until when to print? For now don't use it
+}
+
+
+//Checks last characters of array to see if they are the same as ending
+bool ArrEndsWith(char* arr, byte n, String ending){
+  bool r = true;
+  byte i=n-ending.length();
+  byte j=0;
+  while(r and i<n){
+    r = ending.charAt(j) == arr[i];
+    i++;
+    j++;
+  }
+  return r;
+}
+
+//********************************************************************************************************
+
 void setup() {
   pinMode(PIN_RELAY, OUTPUT);
   digitalWrite(PIN_RELAY, LOW);
@@ -304,224 +529,4 @@ void loop() {
       debugln(F("Client Disconnected."));
     }
   }
-}
-
-//Function for Hex bytes of the NFC
-void printHex(byte *buffer) {
-  for (byte i = 0; i < UID_SIZE; i++) {
-    if (DEBUG == 1){
-      Serial.print(buffer[i] < 0x10 ? " 0" : " ");
-      Serial.print(buffer[i], HEX);
-    }
-  }
-}
-
-bool isSameUID(byte *UID, byte *AuthUID) {
-  bool r = false;
-  byte i = 0;
-  while(not r and i < UID_SIZE){
-      r = AuthUID[i] == UID[i];
-      i++;
-    }
-  return r;
-}
-
-//Uses file "UID_PATH" with stored authorizedUID to check against
-//memoryUID doesn't have delimitators. Every byte is followed by the next one
-//Every i is for every 4 values of the file memoryUID.
-//Doesn't make sense for example to skip checking the last value if third is wrong
-bool isValidUID(byte *UID){
-  bool r = false;
-  File memoryUID = SPIFFS.open(UID_PATH, FILE_READ); //Spiffs is the type of file system
-  
-  if(!memoryUID){
-    debugln(F("- failed to open file UID in checking if UID is auth or not"));
-    return false;
-  }
-  
-  byte authorizedUID [UID_SIZE];
-  byte i=0;
-  //available() tells us if the file still has info. With it no need to check number of UIDs.
-  while(not r and memoryUID.available()){
-      i=0;
-      while(i<UID_SIZE and memoryUID.available()){ 
-        authorizedUID[i]= memoryUID.read();
-        i+=1;
-      }
-      r = isSameUID(UID, authorizedUID);
-  }
-  memoryUID.close();
-  return r;
-}
-
-//Char one
-bool AddUser(byte *lastUnauthUID, char* arr, byte n){ 
-  
-  if(not newUnauthCard){
-    debugln(F("No hay nuevo usuario que añadir"));
-    return false;
-  }
-  File memoryUID = SPIFFS.open(UID_PATH, FILE_APPEND);
-  File memoryNAMES = SPIFFS.open(NAMES_PATH, FILE_APPEND);
-
-  if(!memoryUID or !memoryNAMES){
-    debugln(F("- failed to open files while adding user"));
-    return false;
-  }
-  
-  for(byte i=0;i<UID_SIZE;i++){
-    memoryUID.write(lastUnauthUID[i]);
-  }
-  for(byte i=0;i<n;i++){
-    memoryNAMES.print(arr[i]);
-  }
-  memoryNAMES.print('\n');
-
-  memoryUID.close();
-  memoryNAMES.close();
-
-  newUnauthCard = false;
-  
-  debug(F(" Freeding up space. FreeHeap: "));
-  //debugln(ESP.getFreeHeap()); TODO: check what it did
-  return true;
-}
-
-bool deleteUser(int del_n){
-  if(del_n<0){
-    debugln(F("Invalid number to delete"));
-    return false;
-  }
-  File memoryUID = SPIFFS.open(UID_PATH, FILE_READ);
-  File tempUIDfile = SPIFFS.open(UID_PATH_TEMP, FILE_WRITE);
-
-  if(!memoryUID or !tempUIDfile){
-    debugln(F("- failed to open UID files while deleting user"));
-    return false;
-  }
-  byte n=0;
-  
-  byte i=0;
-  byte b=0;
-  //available() tells us if the file still has info to read
-  while(memoryUID.available()){
-    i=0;
-    //If n it's different than del_n then read bytes and write them into the other file. If they are the same, just skip those 4 bytes
-    while(i<UID_SIZE and memoryUID.available()){ 
-        //We always have to read the bytes, even when n == del_d 
-        b = memoryUID.read();
-        if(n != del_n){ 
-          tempUIDfile.write(b);
-        }
-        i+=1;
-    }
-    n++;
-  }
-  memoryUID.close();
-  tempUIDfile.close();
-  //tempUIDfile has been constructed
-
-  File memoryNAMES = SPIFFS.open(NAMES_PATH, FILE_READ);
-  File tempNAMESfile = SPIFFS.open(NAMES_PATH_TEMP, FILE_WRITE);
-
-  if(!memoryNAMES or !tempNAMESfile){
-    debugln(F("- failed to open NAMES files while deleting user"));
-    return false;
-  }
-  
-  char c;
-  n=0;
-  //available() tells us if the file still has info to read
-  while(memoryNAMES.available()){
-    while(memoryNAMES.available() and c !='\n'){ //So when we see a char that is '\0' then the string has ended-> write it down then sum 1 to n, and continue
-      c = memoryNAMES.read();
-      if(n != del_n){
-        tempNAMESfile.write(c);
-      }
-    }
-    c =' '; //Stop c from being '\0' to continue reading
-    n++;
-  }
-
-  memoryNAMES.close();
-  tempNAMESfile.close();
-
-  //tempNAMESfile has been constructed
-  //Now we do the critical part. 1 Delete file NAMES_PATH. 2 Change names of NAMES_PATH_TEMP to NAMES_PATH. Same with UID. If it's interrupted after deleting it's gonna lose info.
-  //TODO check if operations have been done succesfully, and do exception case. Return false from function.
-  SPIFFS.remove(NAMES_PATH);
-  SPIFFS.remove(UID_PATH);
-  SPIFFS.rename(UID_PATH_TEMP, UID_PATH);
-  SPIFFS.rename(NAMES_PATH_TEMP, NAMES_PATH);
-  
-  return true;
-}
-
-
-void restart(){
-  debugln(F("ESP Restarting..."));
-  delay(100);
-  ESP.restart();
-}
-
-
-//Char array functions needed
-//Gets array, lenght, n1 and n2, and deletes first n1 char and last n2 char.
-//Example arr is "123456789", and we call with (arr,9,3,2); arr->"23456" and returns n=5 which is the new lenght.
-byte substituteBySubString(char* arr, byte n, byte first_char, byte last_char){
-  byte j=0;
-  for(byte i=0; i<n; i++){
-    if(first_char<=i and i<(n-last_char)){
-        arr[j]=arr[i];
-        j++;
-      }
-  }
-
-  n=n-j+1;
-  return n;
-}
-  
-//Convert char array to a number.
-int charArrToInt(char* arr, byte n){
-  int r=0;
-  for(byte i=0; i < n; i++){
-    r = 10*r + (arr[i] - '0');
-  }
-
-  return r;
-}
-
-byte addChar(char* arr, byte n, char c){
-  if(n<100){
-    arr[n]=c;
-    n=n+1;
-
-  } //TODO: Change magic number to a define
-  return n;
-}
-
-
-char * getSubString(char* arr, byte n, byte first_char, byte last_char){
-  char s[100]; //TODO: change magic numbers
-  byte j=0;
-  for(byte i=0; i<n; i++){
-    if(first_char<=i and i<(n-last_char)){
-        s[j]=arr[i];
-        j++;
-      }
-  }
-  return s; //TODO: problem, how tf is supossed to know until when to print? For now don't use it
-}
-
-//Checks last characters of array to see if they are the same as ending
-bool ArrEndsWith(char* arr, byte n, String ending){
-  bool r = true;
-  byte i=n-ending.length();
-  byte j=0;
-  while(r and i<n){
-    r = ending.charAt(j) == arr[i];
-    i++;
-    j++;
-  }
-  return r;
 }
