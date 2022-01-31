@@ -354,36 +354,6 @@ bool isValidUID(byte *UID){
   return r;
 }
 
-//Returns true if executes correctly
-// bool AddUser(byte *lastUnauthUID, String nameData){ //TODO change function to get char array
-  
-//   if(not newUnauthCard){
-//     debugln(F("No hay nuevo usuario que añadir"));
-//     return false;
-//   }
-//   File memoryUID = SPIFFS.open(UID_PATH, FILE_APPEND);
-//   File memoryNAMES = SPIFFS.open(NAMES_PATH, FILE_APPEND);
-
-//   if(!memoryUID or !memoryNAMES){
-//     debugln(F("- failed to open files while adding user"));
-//     return false;
-//   }
-  
-//   for(byte i=0;i<UID_SIZE;i++){
-//     memoryUID.write(lastUnauthUID[i]);
-//   }
-//   memoryNAMES.print(nameData+'\n');
-
-//   memoryUID.close();
-//   memoryNAMES.close();
-
-//   newUnauthCard = false;
-  
-//   debug(F(" Freeding up space. FreeHeap: "));
-//   debugln(ESP.getFreeHeap());
-//   return true;
-// }
-
 //Char one
 bool AddUser(byte *lastUnauthUID, char* arr, byte n){ 
   
