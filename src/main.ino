@@ -1,16 +1,12 @@
 /*
  * Created by Miguel Angel Calvera (Miguel33Angel)
  * 
-*/
-
-/*
  * TODO: (This are improvements so low priority)
- * - Change all String to *char: create functions like endsWith and similar
- * - Change SPIFFS type of system to LITTELFS. It's just installing the library and changin all the SPIFFS.something o LITTELFS.something.
+ * - Change SPIFFS type of system to LITTELFS. It's just installing the library and changing all the SPIFFS.something o LITTELFS.something.
 */
 
 //Debug definitions
-#define DEBUG 0
+#define DEBUG 1
 
 #if DEBUG == 1
 #define debug(x) Serial.print(x)
@@ -25,6 +21,7 @@
 
 
 // Includes for the Wifi access point
+#include <Arduino.h>
 #include <WiFi.h>
 #include <WiFiClient.h>
 #include <WiFiAP.h>
@@ -61,11 +58,17 @@
 // Variables for the Wifi access point
 // Set these to your desired credentials.
 WiFiServer server(80);
-const char *ssid = "yourAP";
-const char *password = "yourPassword";
+const char *ssid = "San Pedro";
+const char *password = "Sergiopass";
 
 bool saveNextData = false; //To check if we need to save the data the user is sending through the webpage
-String savedData  = "";
+//TODO: Decide size of buffer
+
+#define BUFFER_SIZE 100
+char bufferCurrentLine[100];
+int nCurrent = 0; //Number of letters used in currentLine
+char bufferSavedData[100]; 
+int nSaved = 0; //Number of letters used in currentLine
 
 enum action {add, del}; //add=0, del=1;
 enum action Data_Action;
@@ -76,58 +79,72 @@ MFRC522 rfid(SS_PIN, RST_PIN);
 byte lastUnauthUID[UID_SIZE] = {0x00, 0x00, 0x00, 0x00};
 bool newUnauthCard = false;
 
+//V2 auto-check;
+byte VersionRFID=0;
+unsigned long  last_time_checked=0;
+unsigned long now=0;
 
 void setup() {
   pinMode(PIN_RELAY, OUTPUT);
-  digitalWrite(PIN_RELAY, HIGH);
+  digitalWrite(PIN_RELAY, LOW);
   if (DEBUG == 1){
     Serial.begin(115200);
   }
+
   //Spiffs setup
   if(!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)){
-    debugln("SPIFFS Mount Failed");
+    debugln(F("SPIFFS Mount Failed"));
     restart();
   }
 
-  
-
   //Wi-Fi
   debugln();
-  debugln("Configuring access point...");
+  debugln(F("Configuring access point..."));
   
   // You can remove the password parameter if you want the AP to be open.
   WiFi.softAP(ssid, password);
   IPAddress myIP = WiFi.softAPIP();
-  debug("AP IP address: ");
+  debug(F("AP IP address: "));
   debugln(myIP);
   server.begin();
 
-  debugln("Server started");
+  debugln(F("Server started"));
 
   //Now, do the NFC
   
   SPI.begin(); // init SPI bus
   rfid.PCD_Init(); // init MFRC522
-  debugln("Tap RFID/NFC Tag on reader");
-
-  
+  debugln(F("Tap RFID/NFC Tag on reader"));
 
 }
 
 void loop() {
-  
+  now = millis();
+  if(now - last_time_checked>14400000){ //3600000
+    //If more than 60 minutes has passed, then restart
+    rfid.PCD_PerformSelfTest();
+    last_time_checked = millis();
+  }
+
+//  if(now - last_time_checked>115200000){ //3600000
+//    //If more than 60 minutes has passed, then restart
+//    restart();
+//    last_time_checked = millis();
+//  }
+
   
   //Priority is to read the NFC cards, in case a auth card get's readed.
   //If unauth, then it should be saved in case we want to save it
   if (rfid.PICC_IsNewCardPresent()) {   // if new tag is available
     if (rfid.PICC_ReadCardSerial()) {   // and if NUID has been readed
       if(isValidUID(rfid.uid.uidByte)){ //It's an AUTH UID:
-        debug("Authorized Tag with UID:");
-        digitalWrite(PIN_RELAY, LOW);   // turn the LED on (HIGH is the voltage level)
+        debug(F("Authorized Tag with UID:"));
+        //TODO: Do Relay control with other core.
+        digitalWrite(PIN_RELAY, HIGH);   // turn the LED on (HIGH is the voltage level)
         delay(2000);                       // wait for a second
-        digitalWrite(PIN_RELAY, HIGH);    // turn the LED off by making the voltage LOW
+        digitalWrite(PIN_RELAY, LOW);    // turn the LED off by making the voltage LOW
       }else{                             //It's an UNAUTH UID:
-        debug("Unauthorized Tag with UID:");
+        debug(F("Unauthorized Tag with UID:"));
         for (byte i=0;i<UID_SIZE;i++){ //Save the uid in lastUnauthUID
           lastUnauthUID[i] = rfid.uid.uidByte[i];
           }
@@ -145,141 +162,147 @@ void loop() {
 
 
 
-  //Now listen for incoming clients
-  WiFiClient client = server.available();  
-  if (client) {                             // if you get a client,
-    debugln("New Client.");          
-    String currentLine = "";                // make a String to hold incoming data from the client
-    while (client.connected()) {            // loop while the client's connected
-      if (client.available()) {             // if there's bytes to read from the client,
-        char c = client.read();             // read a byte, then
-        debug(c);                    // print it out the serial monitor
-        if (c == '\n') {                    // if the byte is a newline character
+    //Now listen for incoming clients
+    WiFiClient client = server.available();  
+      if (client) {                             // if you get a client,
+      debugln(F("New Client."));
+      // currentLineBuffer-> make a String to hold incoming data from the client
+      nCurrent = 0; //This makes currentLine to be empty
+      while (client.connected()) {            // loop while the client's connected
+        if (client.available()) {             // if there's bytes to read from the client,
+          char c = client.read();             // read a byte, then
+          debug(c);                    // print it out the serial monitor
+          if (c == '\n') {                    // if the byte is a newline character
 
-          // if the current line is blank, you got two newline characters in a row.
-          // that's the end of the client HTTP request, so send a response:
-          if (currentLine.length() == 0) {
-            // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
-            // and a content-type so the client knows what's coming, then a blank line:
-            client.println("HTTP/1.1 200 OK");
-            client.println("Content-type:text/html");
-            client.println();
-            // the content of the HTTP response follows the header:
+            // if the current line is blank, you got two newline characters in a row.
+            // that's the end of the client HTTP request, so send a response:
+            if (nCurrent == 0) {
+              // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
+              // and a content-type so the client knows what's coming, then a blank line:
+              client.println(F("HTTP/1.1 200 OK"));
+              client.println(F("Content-type:text/html"));
+              client.println();
+              // the content of the HTTP response follows the header:
             
-            // Pre makes so spaces are still saved. Style makes so the font is bigger.
-            client.print("<pre style=\"font-size:20px;\">");
+              // Pre makes so spaces are still saved. Style makes so the font is bigger.
+              client.print(F("<pre style=\"font-size:20px;\">"));
             
-            //Now the content in itself. We need to open the files to get the display of the data.
-            File memoryUID = SPIFFS.open(UID_PATH, FILE_READ);
-            File memoryNAMES = SPIFFS.open(NAMES_PATH, FILE_READ);
+              //Now the content in itself. We need to open the files to get the display of the data.
+              File memoryUID = SPIFFS.open(UID_PATH, FILE_READ);
+              File memoryNAMES = SPIFFS.open(NAMES_PATH, FILE_READ);
 
-            if(!memoryUID or !memoryNAMES){
-              debugln("- failed to open one file");
-              restart();
-            }
+              if(!memoryUID or !memoryNAMES){
+                debugln(F("- failed to open one file"));
+                restart();
+              }
             
-            byte i = 0 ;
-            while(memoryUID.available() and memoryNAMES.available()){ 
-              //So, while the files are still unread
-              client.print(i+1);
-              client.print("  -  ");
+              byte i = 0 ;
+              while(memoryUID.available() and memoryNAMES.available()){ 
+                //So, while the files are still unread
+                client.print(i+1);
+                client.print(F("  -  "));
               
-              String currentName = "";  //Name to be readen
-              char l= 'a';                   //letter of the name
+                //Name to be readen
+                nCurrent = 0; //Makes current empty
 
-              while(memoryNAMES.available() and l !='\n'){ //If the character is not the delimitator
-                l = memoryNAMES.read();                    //Read a letter (char)
-                if(l=='+'){
-                  l=' ';  
+                char l= 'a';                   //letter of the name
+
+                while(memoryNAMES.available() and l !='\n'){ //If the character is not the delimitator
+                  l = memoryNAMES.read();                    //Read a letter (char)
+                  if(l=='+'){
+                    l=' ';  
+                  }
+                  addChar(bufferCurrentLine,nCurrent,l);//Add it to the current Name
+                  
                 }
-                currentName = currentName+l;          //Add it to the current Name
-              }
-              l=' '; //Reset condition for l
+                l=' '; //Reset condition for l
+                //Put the name to be displayed
+                client.print(getSubString(bufferCurrentLine,nCurrent,0,1)); //TODO: for now it won't work
+                client.print(F(" - "));
               
-              client.print(currentName.substring(0,currentName.length()-1)); //Put the name to be displayed
-              client.print(" - ");
-              
-              byte currentByte;         //Byte of UID to be readen
-              byte nBytesRead=0;          //Counter
-              while (memoryUID.available() and nBytesRead < UID_SIZE) {
-                currentByte = memoryUID.read();
-                client.print(currentByte < 0x10 ? " 0" : " "); //Puts 0 in numbers like 2,9,B etc
-                client.print(currentByte, HEX);
-                nBytesRead++;
+                byte currentByte;         //Byte of UID to be readen
+                byte nBytesRead=0;          //Counter
+                while (memoryUID.available() and nBytesRead < UID_SIZE) {
+                  currentByte = memoryUID.read();
+                  client.print(currentByte < 0x10 ? " 0" : " "); //Puts 0 in numbers like 2,9,B etc
+                  client.print(currentByte, HEX);
+                  nBytesRead++;
+                }
+                client.print(F("<br/>"));
+                i++;
               }
-              client.print("<br/>");
-              i++;
-            }
-            //When done with files, close them:
-            memoryUID.close();
-            memoryNAMES.close();
+              //When done with files, close them:
+              memoryUID.close();
+              memoryNAMES.close();
             
-            client.print("</pre>");
+              client.print(F("</pre>"));
             
-            //Input for adding a new UID
-            //Input for deleting a existing UID
-            client.print("<form action=\"http://192.168.4.1/Send_Data/\">"
-            "<label style=\"font-size:25px;\"  for=\"fname\">Add with Name: </label>" 
-            "<input style=\"font-size:20px;\"  type=\"text\" id=\"fname\" name=\"fname\">"
-            "<input style=\"font-size:20px;\"  type=\"submit\" value=\"Add\"> </form>");
-            client.print("<form action=\"http://192.168.4.1/Delete_Data/\">"
-            "<label style=\"font-size:25px;\"  for=\"num\">Delete number: </label>" 
-            "<input style=\"font-size:20px;\"  type=\"text\" id=\"num\" name=\"num\">"
-            "<input style=\"font-size:20px;\"  type=\"submit\" value=\"Delete\"> </form>");
+              //Input for adding a new UID
+              //Input for deleting a existing UID
+              client.print(F("<form action=\"http://192.168.4.1/Send_Data/\">"
+              "<label style=\"font-size:25px;\"  for=\"fname\">Add with Name: </label>" 
+              "<input style=\"font-size:20px;\"  type=\"text\" id=\"fname\" name=\"fname\">"
+              "<input style=\"font-size:20px;\"  type=\"submit\" value=\"Add\"> </form>"));
+              client.print(F("<form action=\"http://192.168.4.1/Delete_Data/\">"
+              "<label style=\"font-size:25px;\"  for=\"num\">Delete number: </label>" 
+              "<input style=\"font-size:20px;\"  type=\"text\" id=\"num\" name=\"num\">"
+              "<input style=\"font-size:20px;\"  type=\"submit\" value=\"Delete\"> </form>"));
 
-            // The HTTP response ends with another blank line:
-            client.println();
-            // break out of the while loop:
-            break;
-          } else {    // if you got a newline, then clear currentLine and savedData (in case we are saving data):
-            if (saveNextData){ //If this is true, it's because we got a response from the phone saying "GET /Send_Data/_somedata_" and we want to use _somedata_
-              //savedData = currentLine.substring(0) ; //Copies currentLine into savedData. Only use if both things are strings
+              // The HTTP response ends with another blank line:
+              client.println();
+              // break out of the while loop:
+              break;
+            } else {    // if you got a newline, then clear currentLine and savedData (in case we are saving data):
+              if (saveNextData){ //If this is true, it's because we got a response from the phone saying "GET /Send_Data/_somedata_" and we want to use _somedata_
+                //savedData = currentLine.substring(0) ; //Copies currentLine into savedData. Only use if both things are strings
               
-              if (Data_Action==add){
-                String nameData = savedData.substring(ADD_FIRST_CHAR, savedData.length()-ADD_LAST_CHAR);
-                debug("++++"+nameData+"+++++");
-                printHex(lastUnauthUID);
-                AddUser(lastUnauthUID, nameData);
+                if (Data_Action==add){
+                  nSaved = substituteBySubString(bufferSavedData,nSaved,ADD_FIRST_CHAR,ADD_LAST_CHAR);
+                  debug(bufferSavedData);//TODO: Check if it works
+                  //debug("++++"+bufferSavedData+"+++++");
+                  printHex(lastUnauthUID);
+                  AddUser(lastUnauthUID, bufferSavedData, nSaved);
                 
-              }else if (Data_Action==del){
-                String nameData = savedData.substring(DEL_FIRST_CHAR, savedData.length()-DEL_LAST_CHAR);
-                debug("----"+nameData+"-----");
-                deleteUser(nameData.toInt());
-              }
-              debugln();
+                }else if (Data_Action==del){
+                  nSaved = substituteBySubString(bufferSavedData,nSaved,DEL_FIRST_CHAR,DEL_LAST_CHAR);
+                  debug(bufferSavedData);
+                  //debug("++++"+bufferSavedData+"+++++");
+                  deleteUser(charArrToInt(bufferSavedData,nSaved));
+                }
+                debugln();
               
-              saveNextData = false; //Finish saving the message.
-              savedData = ""; //Delete it after used
-              }
-            currentLine = "";
-          }
-        } else if (c != '\r') {  // if you got anything else but a carriage return character,
-          currentLine += c;      // add it to the end of the currentLine
-          if(saveNextData){      // and to savedData, in case we are interested
-            savedData += c ;
+                saveNextData = false; //Finish saving the message.
+                nSaved = 0; //Delete it after used
+                }
+              
+              nCurrent=0;
             }
-        }
+          } else if (c != '\r') {  // if you got anything else but a carriage return character,
+            nCurrent = addChar(bufferCurrentLine,nCurrent, c);      // add it to the end of the currentLine
+            if(saveNextData){      // and to savedData, in case we are interested
+              nSaved = addChar(bufferSavedData,nSaved, c);
+              }
+          }
 
-        // Check the client request:
-        if (currentLine.endsWith("GET /Send_Data")) {
-          //Start to save the data incomming until you get the whole message
-          saveNextData = true; 
-          Data_Action = add;
+          // Check the client request:
+          //if (currentLine.endsWith(F("GET /Send_Data"))) {
+          if (ArrEndsWith(bufferCurrentLine, nCurrent,F("GET /Send_Data"))){
+            //Start to save the data incomming until you get the whole message
+            saveNextData = true;
+            Data_Action = add;
           
-        }else if (currentLine.endsWith("GET /Delete_Data")) {
-          //Start to save the data incomming until you get the whole message
-          saveNextData = true; 
-          Data_Action = del;
-        }
+          }else if (ArrEndsWith(bufferCurrentLine, nCurrent,F("GET /Delete_Data"))){
+            //Start to save the data incomming until you get the whole message
+            saveNextData = true; 
+            Data_Action = del;
+          }
         
-      }
-    }//End While client is connected
-    // close the connection:
-    client.stop();
-    debugln("Client Disconnected.");
-  }
-
-
+        }
+      }//End While client is connected
+      // close the connection:
+      client.stop();
+      debugln(F("Client Disconnected."));
+    }
   }
 }
 
@@ -312,7 +335,7 @@ bool isValidUID(byte *UID){
   File memoryUID = SPIFFS.open(UID_PATH, FILE_READ); //Spiffs is the type of file system
   
   if(!memoryUID){
-    debugln("- failed to open file UID in checking if UID is auth or not");
+    debugln(F("- failed to open file UID in checking if UID is auth or not"));
     return false;
   }
   
@@ -332,45 +355,78 @@ bool isValidUID(byte *UID){
 }
 
 //Returns true if executes correctly
-bool AddUser(byte *lastUnauthUID, String nameData){
+// bool AddUser(byte *lastUnauthUID, String nameData){ //TODO change function to get char array
+  
+//   if(not newUnauthCard){
+//     debugln(F("No hay nuevo usuario que añadir"));
+//     return false;
+//   }
+//   File memoryUID = SPIFFS.open(UID_PATH, FILE_APPEND);
+//   File memoryNAMES = SPIFFS.open(NAMES_PATH, FILE_APPEND);
+
+//   if(!memoryUID or !memoryNAMES){
+//     debugln(F("- failed to open files while adding user"));
+//     return false;
+//   }
+  
+//   for(byte i=0;i<UID_SIZE;i++){
+//     memoryUID.write(lastUnauthUID[i]);
+//   }
+//   memoryNAMES.print(nameData+'\n');
+
+//   memoryUID.close();
+//   memoryNAMES.close();
+
+//   newUnauthCard = false;
+  
+//   debug(F(" Freeding up space. FreeHeap: "));
+//   debugln(ESP.getFreeHeap());
+//   return true;
+// }
+
+//Char one
+bool AddUser(byte *lastUnauthUID, char* arr, byte n){ 
+  
   if(not newUnauthCard){
-    debugln("No hay nuevo usuario que añadir");
+    debugln(F("No hay nuevo usuario que añadir"));
     return false;
   }
   File memoryUID = SPIFFS.open(UID_PATH, FILE_APPEND);
   File memoryNAMES = SPIFFS.open(NAMES_PATH, FILE_APPEND);
 
   if(!memoryUID or !memoryNAMES){
-    debugln("- failed to open files while adding user");
+    debugln(F("- failed to open files while adding user"));
     return false;
   }
   
   for(byte i=0;i<UID_SIZE;i++){
     memoryUID.write(lastUnauthUID[i]);
   }
-  memoryNAMES.print(nameData+'\n');
+  for(byte i=0;i<n;i++){
+    memoryNAMES.print(arr[i]);
+  }
+  memoryNAMES.print('\n');
 
   memoryUID.close();
   memoryNAMES.close();
 
   newUnauthCard = false;
   
-  debug(" Freeding up space. FreeHeap: ");
-  debugln(ESP.getFreeHeap());
+  debug(F(" Freeding up space. FreeHeap: "));
+  //debugln(ESP.getFreeHeap()); TODO: check what it did
   return true;
 }
 
 bool deleteUser(int del_n){
-  del_n--; //For some reason ToInt returns a 0 if an error ocurred, so we have to shift everything by 1, so the numbers displayed will have +1 for the user
-  if(del_n==-1){
-    debugln("Invalid number to delete");
+  if(del_n<0){
+    debugln(F("Invalid number to delete"));
     return false;
   }
   File memoryUID = SPIFFS.open(UID_PATH, FILE_READ);
   File tempUIDfile = SPIFFS.open(UID_PATH_TEMP, FILE_WRITE);
 
   if(!memoryUID or !tempUIDfile){
-    debugln("- failed to open UID files while deleting user");
+    debugln(F("- failed to open UID files while deleting user"));
     return false;
   }
   byte n=0;
@@ -399,7 +455,7 @@ bool deleteUser(int del_n){
   File tempNAMESfile = SPIFFS.open(NAMES_PATH_TEMP, FILE_WRITE);
 
   if(!memoryNAMES or !tempNAMESfile){
-    debugln("- failed to open NAMES files while deleting user");
+    debugln(F("- failed to open NAMES files while deleting user"));
     return false;
   }
   
@@ -433,7 +489,69 @@ bool deleteUser(int del_n){
 
 
 void restart(){
-  debugln("ESP Restarting...");
+  debugln(F("ESP Restarting..."));
   delay(100);
   ESP.restart();
+}
+
+
+//Char array functions needed
+//Gets array, lenght, n1 and n2, and deletes first n1 char and last n2 char.
+//Example arr is "123456789", and we call with (arr,9,3,2); arr->"23456" and returns n=5 which is the new lenght.
+byte substituteBySubString(char* arr, byte n, byte first_char, byte last_char){
+  byte j=0;
+  for(byte i=0; i<n; i++){
+    if(first_char<=i and i<(n-last_char)){
+        arr[j]=arr[i];
+        j++;
+      }
+  }
+
+  n=n-j+1;
+  return n;
+}
+  
+//Convert char array to a number.
+int charArrToInt(char* arr, byte n){
+  int r=0;
+  for(byte i=0; i < n; i++){
+    r = 10*r + (arr[i] - '0');
+  }
+
+  return r;
+}
+
+byte addChar(char* arr, byte n, char c){
+  if(n<100){
+    arr[n]=c;
+    n=n+1;
+
+  } //TODO: Change magic number to a define
+  return n;
+}
+
+
+char * getSubString(char* arr, byte n, byte first_char, byte last_char){
+  char s[100]; //TODO: change magic numbers
+  byte j=0;
+  for(byte i=0; i<n; i++){
+    if(first_char<=i and i<(n-last_char)){
+        s[j]=arr[i];
+        j++;
+      }
+  }
+  return s; //TODO: problem, how tf is supossed to know until when to print? For now don't use it
+}
+
+//Checks last characters of array to see if they are the same as ending
+bool ArrEndsWith(char* arr, byte n, String ending){
+  bool r = true;
+  byte i=n-ending.length();
+  byte j=0;
+  while(r and i<n){
+    r = ending.charAt(j) == arr[i];
+    i++;
+    j++;
+  }
+  return r;
 }
