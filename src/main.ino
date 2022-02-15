@@ -385,12 +385,9 @@ void loop() {
       rfid.PCD_StopCrypto1(); // stop encryption on PCD
     }
   }else{
-
-
-
     //Now listen for incoming clients
     WiFiClient client = server.available();  
-      if (client) {                             // if you get a client,
+    if (client) {                             // if you get a client,
       debugln(F("New Client."));
       // currentLineBuffer-> make a String to hold incoming data from the client
       nCurrent = 0; //This makes currentLine to be empty
