@@ -260,7 +260,7 @@ void restart(){
 //1 HTTP/1.1 -> 1
 //Tarjeta+universidad HTTP/1.1 -> Tarjeta+universidad
 //Gets array, lenght, n1 and deletes last n1 char. (9)
-byte substituteBySubString(char* arr, byte n, byte last_char){
+byte deleteLastCharOfArr(char* arr, byte n, byte last_char){
   byte j=0;
   for(byte i=0; i<n; i++){
     if(i<(n-last_char)){
@@ -471,13 +471,13 @@ void loop() {
             } else {    // if you got a newline, then clear currentLine and savedData (in case we are saving data):
               if (saveNextData){ //If this is true, it's because we got a response from the phone saying "GET /Send_Data/_somedata_" and we want to use _somedata_
                 if (Data_Action==add){
-                  nSaved = substituteBySubString(bufferSavedData,nSaved,DEL_LAST_CHAR);
+                  nSaved = deleteLastCharOfArr(bufferSavedData,nSaved,DEL_LAST_CHAR);
                   printHex(lastUnauthUID);
                   AddUser(lastUnauthUID, bufferSavedData, nSaved);
                   saveNextData = false;
                 
                 }else if (Data_Action==del){
-                  nSaved = substituteBySubString(bufferSavedData,nSaved,DEL_LAST_CHAR);
+                  nSaved = deleteLastCharOfArr(bufferSavedData,nSaved,DEL_LAST_CHAR);
                   deleteUser(charArrToInt(bufferSavedData,nSaved));
                 }
               
