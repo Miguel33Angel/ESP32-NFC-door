@@ -2,9 +2,11 @@
  * Created by Miguel Angel Calvera (Miguel33Angel)
  * 
  * TODO: 
- *  - Check full working conditions: Multiple cards, maximum amount of cards and time running without errors in days.
- *  - Change Web GUI. It's horribly small and should be more clear
+ * - Resolve small TODO in code
+ * - Check full working conditions: Multiple cards, maximum amount of cards and time running without errors in days.
+ * - Check if there's no Debug message residue from updating
  * This are improvements so low priority
+ * - Change Web GUI. It's horribly small and should be more clear
  * - Change SPIFFS type of system to LITTELFS. It's just installing the library and changing all the SPIFFS.something o LITTELFS.something.
 */
 
@@ -288,20 +290,6 @@ byte addChar(char* arr, byte n, char c){
   }
   return n;
 }
-
-//TODO: Put examples of what this function does, it's hard to understand otherwise
-byte getSubStringAndPutInArr(char* arr, byte n, byte first_char, byte last_char, char* empty_arr){
-  byte j=0;
-  for(byte i=0; i<n; i++){
-    if(first_char<=i and i<(n-last_char)){
-        empty_arr[j]=arr[i];
-        j++;
-      }
-  }
-  return j;
-}
-
-
 
 bool ArrIsString(char* arr, byte n, String s){
   bool r = (n == s.length());
