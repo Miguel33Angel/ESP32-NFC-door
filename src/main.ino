@@ -1,7 +1,10 @@
 /*
  * Created by Miguel Angel Calvera (Miguel33Angel)
  * 
- * TODO: (This are improvements so low priority)
+ * TODO: 
+ *  - Check full working conditions: Multiple cards, maximum amount of cards and time running without errors in days.
+ *  - Change Web GUI. It's horribly small and should be more clear
+ * This are improvements so low priority
  * - Change SPIFFS type of system to LITTELFS. It's just installing the library and changing all the SPIFFS.something o LITTELFS.something.
 */
 
@@ -26,10 +29,8 @@
 #include <WiFiClient.h>
 #include <WiFiAP.h>
 
-#define ADD_FIRST_CHAR 8
-#define ADD_LAST_CHAR 9
-#define DEL_FIRST_CHAR 6
 #define DEL_LAST_CHAR 9
+#define REFERER_FIRST_DATA_CHAR 28
 
 
 // Includes for the NFC card reader
@@ -62,10 +63,9 @@ const char *ssid = "San Pedro";
 const char *password = "Sergiopass";
 
 bool saveNextData = false; //To check if we need to save the data the user is sending through the webpage
-//TODO: Decide size of buffer
 
 #define BUFFER_SIZE 100
-char bufferCurrentLine[100];
+char bufferCurrentLine[100]; //It's an arbitrary Number, nothing special
 byte nCurrent = 0; //Number of letters used in currentLine
 char bufferSavedData[100]; 
 byte nSaved = 0; //Number of letters used in currentLine
@@ -87,6 +87,14 @@ unsigned long  last_time_checked=0;
 unsigned long now=0;
 
 //*****************************FUNCTIONS DEFINITIONS**************************************
+void printArr(char *buffer, byte n){
+  for (byte i = 0; i < n; i++) {
+    if (DEBUG == 1){
+      Serial.print(buffer[i]);
+    }
+  }
+  Serial.println();
+}
 
 //Function for Hex bytes of the NFC
 void printHex(byte *buffer) {
@@ -150,12 +158,12 @@ bool AddUser(byte *lastUnauthUID, char* arr, byte n){
     debugln(F("- failed to open files while adding user"));
     return false;
   }
-  
+  printArr(arr,n);
   for(byte i=0;i<UID_SIZE;i++){
     memoryUID.write(lastUnauthUID[i]);
   }
   for(byte i=0;i<n;i++){
-    memoryNAMES.print(arr[i]);
+    memoryNAMES.write(arr[i]);
   }
   memoryNAMES.print('\n');
 
@@ -164,12 +172,12 @@ bool AddUser(byte *lastUnauthUID, char* arr, byte n){
 
   newUnauthCard = false;
   
-  debug(F(" Freeding up space. FreeHeap: "));
-  //debugln(ESP.getFreeHeap()); TODO: check what it did
   return true;
 }
 
 bool deleteUser(int del_n){
+  debug(del_n);
+  del_n = del_n-1; //TODO: This should be done differently, but I don't fully remember how this function logic worked
   if(del_n<0){
     debugln(F("Invalid number to delete"));
     return false;
@@ -246,19 +254,19 @@ void restart(){
   ESP.restart();
 }
 
-//Char array functions needed
-//Gets array, lenght, n1 and n2, and deletes first n1 char and last n2 char.
-//Example arr is "123456789", and we call with (arr,9,3,2); arr->"23456" and returns n=5 which is the new lenght.
-byte substituteBySubString(char* arr, byte n, byte first_char, byte last_char){
+
+//1 HTTP/1.1 -> 1
+//Tarjeta+universidad HTTP/1.1 -> Tarjeta+universidad
+//Gets array, lenght, n1 and deletes last n1 char. (9)
+byte substituteBySubString(char* arr, byte n, byte last_char){
   byte j=0;
   for(byte i=0; i<n; i++){
-    if(first_char<=i and i<(n-last_char)){
-        arr[j]=arr[i];
+    if(i<(n-last_char)){
+        //arr[j]=arr[i]; As I'm not deleting elements, just making list shorter this is not needed.
         j++;
       }
   }
-
-  n=n-j+1;
+  n=j;
   return n;
 }
   
@@ -266,23 +274,22 @@ byte substituteBySubString(char* arr, byte n, byte first_char, byte last_char){
 int charArrToInt(char* arr, byte n){
   int r=0;
   for(byte i=0; i < n; i++){
-    r = 10*r + (arr[i] - '0');
+    r = 10*r + (arr[i]-'0');
   }
-
   return r;
 }
 
 
 byte addChar(char* arr, byte n, char c){
-  if(n<100){
+  if(n<BUFFER_SIZE){
     arr[n]=c;
     n=n+1;
 
-  } //TODO: Change magic number to a define
+  }
   return n;
 }
 
-//TODO: it still doesn't work.
+//TODO: Put examples of what this function does, it's hard to understand otherwise
 byte getSubStringAndPutInArr(char* arr, byte n, byte first_char, byte last_char, char* empty_arr){
   byte j=0;
   for(byte i=0; i<n; i++){
@@ -295,15 +302,13 @@ byte getSubStringAndPutInArr(char* arr, byte n, byte first_char, byte last_char,
 }
 
 
-//Checks last characters of array to see if they are the same as ending
-bool ArrEndsWith(char* arr, byte n, String ending){
-  bool r = true;
-  byte i=n-ending.length();
-  byte j=0;
+
+bool ArrIsString(char* arr, byte n, String s){
+  bool r = (n == s.length());
+  byte i=0;
   while(r and i<n){
-    r = ending.charAt(j) == arr[i];
+    r = s.charAt(i) == arr[i];
     i++;
-    j++;
   }
   return r;
 }
@@ -394,7 +399,7 @@ void loop() {
       while (client.connected()) {            // loop while the client's connected
         if (client.available()) {             // if there's bytes to read from the client,
           char c = client.read();             // read a byte, then
-          debug(c);                    // print it out the serial monitor
+          // debug(c);                    // print it out the serial monitor
           if (c == '\n') {                    // if the byte is a newline character
 
             // if the current line is blank, you got two newline characters in a row.
@@ -428,22 +433,19 @@ void loop() {
                 //Name to be readen
                 nCurrent = 0; //Makes current empty
 
-                char l= 'a';                   //letter of the name
+                char l= 'a';  //letter of the name
 
                 while(memoryNAMES.available() and l !='\n'){ //If the character is not the delimitator
                   l = memoryNAMES.read();                    //Read a letter (char)
                   if(l=='+'){
                     l=' ';  
                   }
-                  addChar(bufferCurrentLine,nCurrent,l);//Add it to the current Name
-                  
+                  nCurrent = addChar(bufferCurrentLine,nCurrent,l);//Add it to the current Name
                 }
                 l=' '; //Reset condition for l
-                //Put the name to be displayed in bufferTemporal
-                //TODO: Do I really need another buffer? can't everything be done with 2?
-                nTemp = getSubStringAndPutInArr(bufferCurrentLine,nCurrent,0,1,bufferTemporal);
-                //TODO: for now, will it display 100 char, or only used ones? Maybe creating a function that makes a malloc for printing then frees up the space
-                client.print(bufferTemporal); 
+                for(byte j=0;j<nCurrent-1;j++){//-1 because nCurrent has the \n
+                  client.print(bufferCurrentLine[j]);
+                }
                 client.print(F(" - "));
               
                 byte currentByte;         //Byte of UID to be readen
@@ -480,44 +482,35 @@ void loop() {
               break;
             } else {    // if you got a newline, then clear currentLine and savedData (in case we are saving data):
               if (saveNextData){ //If this is true, it's because we got a response from the phone saying "GET /Send_Data/_somedata_" and we want to use _somedata_
-                //savedData = currentLine.substring(0) ; //Copies currentLine into savedData. Only use if both things are strings
-              
                 if (Data_Action==add){
-                  nSaved = substituteBySubString(bufferSavedData,nSaved,ADD_FIRST_CHAR,ADD_LAST_CHAR);
-                  debug(bufferSavedData);//TODO: Check if it works
-                  //debug("++++"+bufferSavedData+"+++++");
+                  nSaved = substituteBySubString(bufferSavedData,nSaved,DEL_LAST_CHAR);
                   printHex(lastUnauthUID);
                   AddUser(lastUnauthUID, bufferSavedData, nSaved);
+                  saveNextData = false;
                 
                 }else if (Data_Action==del){
-                  nSaved = substituteBySubString(bufferSavedData,nSaved,DEL_FIRST_CHAR,DEL_LAST_CHAR);
-                  debug(bufferSavedData);
-                  //debug("++++"+bufferSavedData+"+++++");
+                  nSaved = substituteBySubString(bufferSavedData,nSaved,DEL_LAST_CHAR);
                   deleteUser(charArrToInt(bufferSavedData,nSaved));
                 }
-                debugln();
               
                 saveNextData = false; //Finish saving the message.
                 nSaved = 0; //Delete it after used
-                }
-              
-              nCurrent=0;
+              }
+              nCurrent = 0;
             }
           } else if (c != '\r') {  // if you got anything else but a carriage return character,
-            nCurrent = addChar(bufferCurrentLine,nCurrent, c);      // add it to the end of the currentLine
+            nCurrent = addChar(bufferCurrentLine, nCurrent, c);      // add it to the end of the currentLine
             if(saveNextData){      // and to savedData, in case we are interested
-              nSaved = addChar(bufferSavedData,nSaved, c);
-              }
+              nSaved = addChar(bufferSavedData, nSaved, c);
+            }
           }
-
-          // Check the client request:
-          //if (currentLine.endsWith(F("GET /Send_Data"))) {
-          if (ArrEndsWith(bufferCurrentLine, nCurrent,F("GET /Send_Data"))){
+            
+          if (ArrIsString(bufferCurrentLine,nCurrent,"GET /Send_Data/?fname=")){ 
             //Start to save the data incomming until you get the whole message
             saveNextData = true;
             Data_Action = add;
           
-          }else if (ArrEndsWith(bufferCurrentLine, nCurrent,F("GET /Delete_Data"))){
+          }else if (ArrIsString(bufferCurrentLine,nCurrent,"GET /Delete_Data/?num=")){
             //Start to save the data incomming until you get the whole message
             saveNextData = true; 
             Data_Action = del;
