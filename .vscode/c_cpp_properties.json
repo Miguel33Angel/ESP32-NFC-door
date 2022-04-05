@@ -8,12 +8,12 @@
         {
             "name": "PlatformIO",
             "includePath": [
-                "c:/Users/migue/Desktop/Miguel/Programación/ESP-IDF/ESP32-NFC-door/include",
-                "c:/Users/migue/Desktop/Miguel/Programación/ESP-IDF/ESP32-NFC-door/src",
+                "c:/Users/migue/Desktop/Miguel/Proyectos/ESP-IDF/ESP32-NFC-door/include",
+                "c:/Users/migue/Desktop/Miguel/Proyectos/ESP-IDF/ESP32-NFC-door/src",
                 "C:/Users/migue/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src",
                 "C:/Users/migue/.platformio/packages/framework-arduinoespressif32/libraries/SPIFFS/src",
                 "C:/Users/migue/.platformio/packages/framework-arduinoespressif32/libraries/FS/src",
-                "c:/Users/migue/Desktop/Miguel/Programación/ESP-IDF/ESP32-NFC-door/.pio/libdeps/esp32dev/MFRC522/src",
+                "c:/Users/migue/Desktop/Miguel/Proyectos/ESP-IDF/ESP32-NFC-door/.pio/libdeps/esp32dev/MFRC522/src",
                 "C:/Users/migue/.platformio/packages/framework-arduinoespressif32/libraries/SPI/src",
                 "C:/Users/migue/.platformio/packages/framework-arduinoespressif32/tools/sdk/include/config",
                 "C:/Users/migue/.platformio/packages/framework-arduinoespressif32/tools/sdk/include/app_trace",
@@ -107,12 +107,12 @@
             "browse": {
                 "limitSymbolsToIncludedHeaders": true,
                 "path": [
-                    "c:/Users/migue/Desktop/Miguel/Programación/ESP-IDF/ESP32-NFC-door/include",
-                    "c:/Users/migue/Desktop/Miguel/Programación/ESP-IDF/ESP32-NFC-door/src",
+                    "c:/Users/migue/Desktop/Miguel/Proyectos/ESP-IDF/ESP32-NFC-door/include",
+                    "c:/Users/migue/Desktop/Miguel/Proyectos/ESP-IDF/ESP32-NFC-door/src",
                     "C:/Users/migue/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src",
                     "C:/Users/migue/.platformio/packages/framework-arduinoespressif32/libraries/SPIFFS/src",
                     "C:/Users/migue/.platformio/packages/framework-arduinoespressif32/libraries/FS/src",
-                    "c:/Users/migue/Desktop/Miguel/Programación/ESP-IDF/ESP32-NFC-door/.pio/libdeps/esp32dev/MFRC522/src",
+                    "c:/Users/migue/Desktop/Miguel/Proyectos/ESP-IDF/ESP32-NFC-door/.pio/libdeps/esp32dev/MFRC522/src",
                     "C:/Users/migue/.platformio/packages/framework-arduinoespressif32/libraries/SPI/src",
                     "C:/Users/migue/.platformio/packages/framework-arduinoespressif32/tools/sdk/include/config",
                     "C:/Users/migue/.platformio/packages/framework-arduinoespressif32/tools/sdk/include/app_trace",
