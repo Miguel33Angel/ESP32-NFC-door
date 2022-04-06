@@ -6,7 +6,8 @@
  * - Check full working conditions: Multiple cards, maximum amount of cards and time running without errors in days.
  * - Check if there's no Debug message residue from updating
  * This are improvements so low priority
- * - Change Web GUI. It's horribly small and should be more clear
+ * - Change Web GUI. It's horribly small and should be more clear -> In progress
+ * - Change Webserver handling. Code horrible to revise or refactor
  * - Change SPIFFS type of system to LITTELFS. It's just installing the library and changing all the SPIFFS.something o LITTELFS.something.
 */
 
