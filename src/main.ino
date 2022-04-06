@@ -11,245 +11,6 @@
  * - Change SPIFFS type of system to LITTELFS. It's just installing the library and changing all the SPIFFS.something o LITTELFS.something.
 */
 
-//Debug definitions
-// #define DEBUG 1
-
-// #if DEBUG == 1
-// #define debug(x) Serial.print(x)
-// #define debugln(x) Serial.println(x)
-// #else
-// #define debug(x)
-// #define debugln(x)
-// #endif
-
-// //Defines for RELAY
-// #define PIN_RELAY 4
-
-
-// // Includes for the Wifi access point
-// #include <Arduino.h>
-// #include <WiFi.h>
-// #include <WiFiClient.h>
-// #include <WiFiAP.h>
-
-// #define DEL_LAST_CHAR 9
-// #define REFERER_FIRST_DATA_CHAR 28
-
-
-// // Includes for the NFC card reader
-// #include <SPI.h>
-// #include <MFRC522.h>
-
-// #define SS_PIN  5  // ESP32 pin GIOP5 
-// #define RST_PIN 27 // ESP32 pin GIOP27 
-
-// #define UID_SIZE 4 //UID are going to be 4 long
-
-// //Includes for using the Flash memory
-// #include "FS.h"
-// #include "SPIFFS.h"
-
-// #define UID_PATH "/UID.txt"
-// #define NAMES_PATH "/Names.txt"
-
-// #define UID_PATH_TEMP "/UID_temp.txt"
-// #define NAMES_PATH_TEMP "/Names_temp.txt"
-
-// #define FORMAT_SPIFFS_IF_FAILED true
-
-// //Variables for the SPIFFS file system
-
-// // Variables for the Wifi access point
-// // Set these to your desired credentials.
-// WiFiServer server(80);
-// const char *ssid = "San Pedro";
-// const char *password = "Sergiopass";
-
-// bool saveNextData = false; //To check if we need to save the data the user is sending through the webpage
-
-// #define BUFFER_SIZE 100
-// char bufferCurrentLine[100]; //It's an arbitrary Number, nothing special
-// byte nCurrent = 0; //Number of letters used in currentLine
-// char bufferSavedData[100]; 
-// byte nSaved = 0; //Number of letters used in currentLine
-// char bufferTemporal[100];
-// byte nTemp = 0;
-
-// enum action {add, del}; //add=0, del=1;
-// enum action Data_Action;
-
-// // Variables for the NFC card reader
-// MFRC522 rfid(SS_PIN, RST_PIN);
-
-// byte lastUnauthUID[UID_SIZE] = {0x00, 0x00, 0x00, 0x00};
-// bool newUnauthCard = false;
-
-// //V2 auto-check;
-// byte VersionRFID=0;
-// unsigned long  last_time_checked=0;
-// unsigned long now=0;
-
-// //*****************************FUNCTIONS DEFINITIONS**************************************
-// void printArr(char *buffer, byte n){
-//   for (byte i = 0; i < n; i++) {
-//     if (DEBUG == 1){
-//       Serial.print(buffer[i]);
-//     }
-//   }
-//   Serial.println();
-// }
-
-// //Function for Hex bytes of the NFC
-// void printHex(byte *buffer) {
-//   for (byte i = 0; i < UID_SIZE; i++) {
-//     if (DEBUG == 1){
-//       Serial.print(buffer[i] < 0x10 ? " 0" : " ");
-//       Serial.print(buffer[i], HEX);
-//     }
-//   }
-// }
-
-// bool isSameUID(byte *UID, byte *AuthUID) {
-//   bool r = false;
-//   byte i = 0;
-//   while(not r and i < UID_SIZE){
-//       r = AuthUID[i] == UID[i];
-//       i++;
-//     }
-//   return r;
-// }
-
-// //Uses file "UID_PATH" with stored authorizedUID to check against
-// //memoryUID doesn't have delimitators. Every byte is followed by the next one
-// //Every i is for every 4 values of the file memoryUID.
-// //Doesn't make sense for example to check the last value if third is wrong
-// bool isValidUID(byte *UID){
-//   bool r = false;
-//   File memoryUID = SPIFFS.open(UID_PATH, FILE_READ); //Spiffs is the type of file system
-  
-//   if(!memoryUID){
-//     debugln(F("- failed to open file UID in checking if UID is auth or not"));
-//     return false;
-//   }
-  
-//   byte authorizedUID [UID_SIZE];
-//   byte i=0;
-//   //available() tells us if the file still has info. With it no need to check number of UIDs.
-//   while(not r and memoryUID.available()){
-//       i=0;
-//       while(i<UID_SIZE and memoryUID.available()){ 
-//         authorizedUID[i]= memoryUID.read();
-//         i+=1;
-//       }
-//       r = isSameUID(UID, authorizedUID);
-//   }
-//   memoryUID.close();
-//   return r;
-// }
-
-// //Char one
-// bool AddUser(byte *lastUnauthUID, char* arr, byte n){ 
-  
-//   if(not newUnauthCard){
-//     debugln(F("No hay nuevo usuario que añadir"));
-//     return false;
-//   }
-//   File memoryUID = SPIFFS.open(UID_PATH, FILE_APPEND);
-//   File memoryNAMES = SPIFFS.open(NAMES_PATH, FILE_APPEND);
-
-//   if(!memoryUID or !memoryNAMES){
-//     debugln(F("- failed to open files while adding user"));
-//     return false;
-//   }
-//   printArr(arr,n);
-//   for(byte i=0;i<UID_SIZE;i++){
-//     memoryUID.write(lastUnauthUID[i]);
-//   }
-//   for(byte i=0;i<n;i++){
-//     memoryNAMES.write(arr[i]);
-//   }
-//   memoryNAMES.print('\n');
-
-//   memoryUID.close();
-//   memoryNAMES.close();
-
-//   newUnauthCard = false;
-  
-//   return true;
-// }
-
-// bool deleteUser(int del_n){
-//   debug(del_n);
-//   del_n = del_n-1; //TODO: This should be done differently, but I don't fully remember how this function logic worked
-//   if(del_n<0){
-//     debugln(F("Invalid number to delete"));
-//     return false;
-//   }
-//   File memoryUID = SPIFFS.open(UID_PATH, FILE_READ);
-//   File tempUIDfile = SPIFFS.open(UID_PATH_TEMP, FILE_WRITE);
-
-//   if(!memoryUID or !tempUIDfile){
-//     debugln(F("- failed to open UID files while deleting user"));
-//     return false;
-//   }
-//   byte n=0;
-  
-//   byte i=0;
-//   byte b=0;
-//   //available() tells us if the file still has info to read
-//   while(memoryUID.available()){
-//     i=0;
-//     //If n it's different than del_n then read bytes and write them into the other file. If they are the same, just skip those 4 bytes
-//     while(i<UID_SIZE and memoryUID.available()){ 
-//         //We always have to read the bytes, even when n == del_d 
-//         b = memoryUID.read();
-//         if(n != del_n){ 
-//           tempUIDfile.write(b);
-//         }
-//         i+=1;
-//     }
-//     n++;
-//   }
-//   memoryUID.close();
-//   tempUIDfile.close();
-//   //tempUIDfile has been constructed
-
-//   File memoryNAMES = SPIFFS.open(NAMES_PATH, FILE_READ);
-//   File tempNAMESfile = SPIFFS.open(NAMES_PATH_TEMP, FILE_WRITE);
-
-//   if(!memoryNAMES or !tempNAMESfile){
-//     debugln(F("- failed to open NAMES files while deleting user"));
-//     return false;
-//   }
-  
-//   char c;
-//   n=0;
-//   //available() tells us if the file still has info to read
-//   while(memoryNAMES.available()){
-//     while(memoryNAMES.available() and c !='\n'){ //So when we see a char that is '\0' then the string has ended-> write it down then sum 1 to n, and continue
-//       c = memoryNAMES.read();
-//       if(n != del_n){
-//         tempNAMESfile.write(c);
-//       }
-//     }
-//     c =' '; //Stop c from being '\0' to continue reading
-//     n++;
-//   }
-
-//   memoryNAMES.close();
-//   tempNAMESfile.close();
-
-//   //tempNAMESfile has been constructed
-//   //Now we do the critical part. 1 Delete file NAMES_PATH. 2 Change names of NAMES_PATH_TEMP to NAMES_PATH. Same with UID. If it's interrupted after deleting it's gonna lose info.
-//   //TODO check if operations have been done succesfully, and do exception case. Return false from function.
-//   SPIFFS.remove(NAMES_PATH);
-//   SPIFFS.remove(UID_PATH);
-//   SPIFFS.rename(UID_PATH_TEMP, UID_PATH);
-//   SPIFFS.rename(NAMES_PATH_TEMP, NAMES_PATH);
-  
-//   return true;
-// }
-
 
 // void restart(){
 //   debugln(F("ESP Restarting..."));
@@ -273,34 +34,7 @@
 //   return n;
 // }
   
-// //Convert char array to a number.
-// int charArrToInt(char* arr, byte n){
-//   int r=0;
-//   for(byte i=0; i < n; i++){
-//     r = 10*r + (arr[i]-'0');
-//   }
-//   return r;
-// }
 
-
-// byte addChar(char* arr, byte n, char c){
-//   if(n<BUFFER_SIZE){
-//     arr[n]=c;
-//     n=n+1;
-
-//   }
-//   return n;
-// }
-
-// bool ArrIsString(char* arr, byte n, String s){
-//   bool r = (n == s.length());
-//   byte i=0;
-//   while(r and i<n){
-//     r = s.charAt(i) == arr[i];
-//     i++;
-//   }
-//   return r;
-// }
 
 // //********************************************************************************************************
 
@@ -525,22 +259,63 @@
   copies or substantial portions of the Software.
 */
 
+// Debug definitions
+#define DEBUG 1
+
+#if DEBUG == 1
+#define debug(x) Serial.print(x)
+#define debugln(x) Serial.println(x)
+#else
+#define debug(x)
+#define debugln(x)
+#endif
+
+// General includes
 #include <Arduino.h>
+
+// Includes for the Wifi access point
 #include <WiFi.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 
-// Stepper Motor Settings
-const int stepsPerRevolution = 2048;  // change this to fit the number of steps per revolution
-#define IN1 19
-#define IN2 18
-#define IN3 5
-#define IN4 17
-//Stepper myStepper(stepsPerRevolution, IN1, IN3, IN2, IN4);
+//Defines for RELAY
+#define PIN_RELAY 4
 
+// #define DEL_LAST_CHAR 9
+// #define REFERER_FIRST_DATA_CHAR 28
+
+
+// Includes for the NFC card reader
+#include <SPI.h>
+#include <MFRC522.h>
+
+#define SS_PIN  5  // ESP32 pin GIOP5 
+#define RST_PIN 27 // ESP32 pin GIOP27 
+
+#define UID_SIZE 4 //UID are going to be 4 long
+
+//Includes for using the Flash memory
+#include "FS.h"
+//#include <LittleFS.h>
+#include "SPIFFS.h"
+
+#define UID_PATH "/UID.txt"
+#define NAMES_PATH "/Names.txt"
+
+#define UID_PATH_TEMP "/UID_temp.txt"
+#define NAMES_PATH_TEMP "/Names_temp.txt"
+
+#define FORMAT_SPIFFS_IF_FAILED true
+
+//Variables for the SPIFFS file system
+
+// Variables for the Wifi access point
 // Replace with your network credentials
 const char* ssid = "yourSSIDname";
 const char* password = "yourpassword";
+
+// const char *ssid = "San Pedro";
+// const char *password = "Sergiopass";
 
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
@@ -549,10 +324,28 @@ AsyncWebServer server(80);
 const char* PARAM_INPUT_1 = "num";
 const char* PARAM_INPUT_2 = "fname";
 
-// Variables to save values from HTML form
-String direction;
-String steps;
+enum action {add, del, not_defined}; //add=0, del=1;
+enum action Data_Action;
 
+// Variables for the NFC card reader
+MFRC522 rfid(SS_PIN, RST_PIN);
+
+byte lastUnauthUID[UID_SIZE] = {0x00, 0x00, 0x00, 0x00};
+bool newUnauthCard = false;
+
+//V2 auto-check;
+// byte VersionRFID=0;
+// unsigned long  last_time_checked=0;
+// unsigned long now=0;
+
+
+
+// Variables to save values from HTML form
+#define BUFFER_SIZE 50
+char number_to_delete[BUFFER_SIZE];
+byte size_delete_arr=0;
+char name_to_add[BUFFER_SIZE];
+byte size_add_arr=0;
 // Variable to detect whether a new request occurred
 bool newRequest = false;
 
@@ -565,7 +358,7 @@ const char index_html[] PROGMEM = R"rawliteral(
   <meta name="viewport" content="width=device-width, initial-scale=1">
 </head>
 <body>
-  <h1>Stepper Motor Control</h1>
+  <h1>Door Card List</h1>
     <form action="/" method="POST">
       <label for="steps">Delete Number:</label>
       <input type="text" name="num">
@@ -578,6 +371,198 @@ const char index_html[] PROGMEM = R"rawliteral(
 </body>
 </html>
 )rawliteral";
+
+
+
+//*****************************FUNCTIONS DEFINITIONS**************************************
+//Convert char array to a number.
+int charArrToInt(char* arr, byte n){
+  int r=0;
+  for(byte i=0; i < n; i++){
+    r = 10*r + (arr[i]-'0');
+  }
+  return r;
+}
+
+
+byte addChar(char* arr, byte n, char c){
+  if(n<BUFFER_SIZE){
+    arr[n]=c;
+    n=n+1;
+
+  }
+  return n;
+}
+
+bool ArrIsString(char* arr, byte n, String s){
+  bool r = (n == s.length());
+  byte i=0;
+  while(r and i<n){
+    r = s.charAt(i) == arr[i];
+    i++;
+  }
+  return r;
+}
+
+void printArr(char *buffer, byte n){
+  for (byte i = 0; i < n; i++) {
+    if (DEBUG == 1){
+      Serial.print(buffer[i]);
+    }
+  }
+  Serial.println();
+}
+
+//Function for Hex bytes of the NFC
+void printHex(byte *buffer) {
+  for (byte i = 0; i < UID_SIZE; i++) {
+    if (DEBUG == 1){
+      Serial.print(buffer[i] < 0x10 ? " 0" : " ");
+      Serial.print(buffer[i], HEX);
+    }
+  }
+}
+
+bool isSameUID(byte *UID, byte *AuthUID) {
+  bool r = false;
+  byte i = 0;
+  while(not r and i < UID_SIZE){
+      r = AuthUID[i] == UID[i];
+      i++;
+    }
+  return r;
+}
+
+//Uses file "UID_PATH" with stored authorizedUID to check against
+//memoryUID doesn't have delimitators. Every byte is followed by the next one
+//Every i is for every 4 values of the file memoryUID.
+//Doesn't make sense for example to check the last value if third is wrong
+bool isValidUID(byte *UID){
+  bool r = false;
+  File memoryUID = SPIFFS.open(UID_PATH, FILE_READ); //Spiffs is the type of file system
+  
+  if(!memoryUID){
+    debugln(F("- failed to open file UID in checking if UID is auth or not"));
+    return false;
+  }
+  
+  byte authorizedUID [UID_SIZE];
+  byte i=0;
+  //available() tells us if the file still has info. With it no need to check number of UIDs.
+  while(not r and memoryUID.available()){
+      i=0;
+      while(i<UID_SIZE and memoryUID.available()){ 
+        authorizedUID[i]= memoryUID.read();
+        i+=1;
+      }
+      r = isSameUID(UID, authorizedUID);
+  }
+  memoryUID.close();
+  return r;
+}
+
+bool AddUser(byte *lastUnauthUID, char* arr, byte n){ 
+  
+  if(not newUnauthCard){
+    debugln(F("No hay nuevo usuario que añadir"));
+    return false;
+  }
+  File memoryUID = SPIFFS.open(UID_PATH, FILE_APPEND);
+  File memoryNAMES = SPIFFS.open(NAMES_PATH, FILE_APPEND);
+
+  if(!memoryUID or !memoryNAMES){
+    debugln(F("- failed to open files while adding user"));
+    return false;
+  }
+  printArr(arr,n);
+  for(byte i=0;i<UID_SIZE;i++){
+    memoryUID.write(lastUnauthUID[i]);
+  }
+  for(byte i=0;i<n;i++){
+    memoryNAMES.write(arr[i]);
+  }
+  memoryNAMES.print('\n');
+
+  memoryUID.close();
+  memoryNAMES.close();
+
+  newUnauthCard = false;
+  
+  return true;
+}
+
+bool deleteUser(int del_n){
+  debug(del_n);
+  del_n = del_n-1;
+  if(del_n<0){
+    debugln(F("Invalid number to delete"));
+    return false;
+  }
+  File memoryUID = SPIFFS.open(UID_PATH, FILE_READ);
+  File tempUIDfile = SPIFFS.open(UID_PATH_TEMP, FILE_WRITE);
+
+  if(!memoryUID or !tempUIDfile){
+    debugln(F("- failed to open UID files while deleting user"));
+    return false;
+  }
+  byte n=0;
+  
+  byte i=0;
+  byte b=0;
+  //available() tells us if the file still has info to read
+  while(memoryUID.available()){
+    i=0;
+    //If n it's different than del_n then read bytes and write them into the other file. If they are the same, just skip those 4 bytes
+    while(i<UID_SIZE and memoryUID.available()){ 
+        //We always have to read the bytes, even when n == del_d 
+        b = memoryUID.read();
+        if(n != del_n){ 
+          tempUIDfile.write(b);
+        }
+        i+=1;
+    }
+    n++;
+  }
+  memoryUID.close();
+  tempUIDfile.close();
+  //tempUIDfile has been constructed
+
+  File memoryNAMES = SPIFFS.open(NAMES_PATH, FILE_READ);
+  File tempNAMESfile = SPIFFS.open(NAMES_PATH_TEMP, FILE_WRITE);
+
+  if(!memoryNAMES or !tempNAMESfile){
+    debugln(F("- failed to open NAMES files while deleting user"));
+    return false;
+  }
+  
+  char c;
+  n=0;
+  //available() tells us if the file still has info to read
+  while(memoryNAMES.available()){
+    while(memoryNAMES.available() and c !='\n'){ //So when we see a char that is '\0' then the string has ended-> write it down then sum 1 to n, and continue
+      c = memoryNAMES.read();
+      if(n != del_n){
+        tempNAMESfile.write(c);
+      }
+    }
+    c =' '; //Stop c from being '\0' to continue reading
+    n++;
+  }
+
+  memoryNAMES.close();
+  tempNAMESfile.close();
+
+  //tempNAMESfile has been constructed
+  //Now we do the critical part. 1 Delete file NAMES_PATH. 2 Change names of NAMES_PATH_TEMP to NAMES_PATH. Same with UID. If it's interrupted after deleting it's gonna lose info.
+  //TODO check if operations have been done succesfully, and do exception case. Return false from function.
+  SPIFFS.remove(NAMES_PATH);
+  SPIFFS.remove(UID_PATH);
+  SPIFFS.rename(UID_PATH_TEMP, UID_PATH);
+  SPIFFS.rename(NAMES_PATH_TEMP, NAMES_PATH);
+  
+  return true;
+}
+
 
 // Initialize WiFi
 void initWiFi() {
@@ -593,11 +578,17 @@ void setup() {
 
   initWiFi();
 
-  //myStepper.setSpeed(5);
-
   // Web Server Root URL
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send(200, "text/html", index_html);
+  });
+
+  server.on("/add", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(200, "text/plain", "ADD from ESP32 server route");
+  });
+
+  server.on("/delete", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(200, "text/plain", "DELETE from ESP32 server route");
   });
   
   // Handle request (form)
@@ -606,22 +597,46 @@ void setup() {
     for(int i=0;i<params;i++){
       AsyncWebParameter* p = request->getParam(i);
       if(p->isPost()){
-        // HTTP POST input1 value (direction)
+        // HTTP POST input1 value (number)
         if (p->name() == PARAM_INPUT_1) {
-          direction = p->value().c_str();
-          Serial.print("Direction set to: ");
-          Serial.println(direction);
-        }
-        // HTTP POST input2 value (steps)
+          // number_to_delete = p->value().c_str();
+          // C++ garbage semantics
+          // p->value() is a fancy way of doing p.value, when p is a pointer to a struct, instead of a struct
+          // p->value().c_str() is a fancy way of getting the c type string from the string of value of the structure p is pointing.
+          p->value().toCharArray(number_to_delete, BUFFER_SIZE);
+          size_delete_arr = p->value().length();
+          printArr(number_to_delete,size_delete_arr);
+          debugln("First ");
+          Data_Action = del;
+        } 
+        //If it's deleting someone, then don't add someone.
+        // HTTP POST input2 value (name)
         if (p->name() == PARAM_INPUT_2) {
-          steps = p->value().c_str();
-          Serial.print("Number of steps set to: ");
-          Serial.println(steps);
+          // name_to_add = p->value().c_str();
+          p->value().toCharArray(name_to_add, BUFFER_SIZE);
+          size_add_arr = p->value().length();
+          printArr(name_to_add,size_add_arr);
+          // addStringToBuffer(p->value().c_str(),name_to_add) //TODO: delete if works
+          // Serial.print("Number of steps set to: ");
+          // Serial.println(steps);
+          debugln("Second ");
+          Data_Action = add;
         }
       }
     }
-    request->send(200, "text/html", index_html);
+
+    if(Data_Action == del){
+      request->redirect("/delete");
+    }else{
+      if(Data_Action == add){
+        request->redirect("/add");
+      }else{
+        request->send(200, "text/html", index_html);
+      }
+    }
+
     newRequest = true;
+    Data_Action = not_defined; //Reset value
   });
 
   server.begin();
@@ -630,16 +645,18 @@ void setup() {
 void loop() {
   // Check if there was a new request and move the stepper accordingly
   if (newRequest){
-    if (direction == "CW"){
-      // Spin the stepper clockwise direction
-      //myStepper.step(steps.toInt());
-      Serial.println("CW Direccion");
-    }
-    else{
-      // Spin the stepper counterclockwise direction
-      //myStepper.step(-steps.toInt());
-      Serial.println("La otra Direccion");
-    }
+    // if (direction == "CW"){
+    //   // Spin the stepper clockwise direction
+    //   //myStepper.step(steps.toInt());
+    //   Serial.println("CW Direccion");
+    // }
+    // else{
+    //   // Spin the stepper counterclockwise direction
+    //   //myStepper.step(-steps.toInt());
+    //   Serial.println("La otra Direccion");
+    // }
+    debugln("New request");
+    debugln("");
     newRequest = false;
   }
 

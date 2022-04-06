@@ -10,6 +10,7 @@
             "includePath": [
                 "c:/Users/migue/Desktop/Miguel/Proyectos/ESP-IDF/ESP32-NFC-door/include",
                 "c:/Users/migue/Desktop/Miguel/Proyectos/ESP-IDF/ESP32-NFC-door/src",
+                "c:/Users/migue/Desktop/Miguel/Proyectos/ESP-IDF/ESP32-NFC-door/.pio/libdeps/esp32dev/LittleFS_esp32/src",
                 "c:/Users/migue/Desktop/Miguel/Proyectos/ESP-IDF/ESP32-NFC-door/.pio/libdeps/esp32dev/ESP Async WebServer/src",
                 "C:/Users/migue/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src",
                 "C:/Users/migue/.platformio/packages/framework-arduinoespressif32/libraries/FS/src",
@@ -111,6 +112,7 @@
                 "path": [
                     "c:/Users/migue/Desktop/Miguel/Proyectos/ESP-IDF/ESP32-NFC-door/include",
                     "c:/Users/migue/Desktop/Miguel/Proyectos/ESP-IDF/ESP32-NFC-door/src",
+                    "c:/Users/migue/Desktop/Miguel/Proyectos/ESP-IDF/ESP32-NFC-door/.pio/libdeps/esp32dev/LittleFS_esp32/src",
                     "c:/Users/migue/Desktop/Miguel/Proyectos/ESP-IDF/ESP32-NFC-door/.pio/libdeps/esp32dev/ESP Async WebServer/src",
                     "C:/Users/migue/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src",
                     "C:/Users/migue/.platformio/packages/framework-arduinoespressif32/libraries/FS/src",
