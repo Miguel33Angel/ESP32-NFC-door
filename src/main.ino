@@ -12,11 +12,7 @@
 */
 
 
-// void restart(){
-//   debugln(F("ESP Restarting..."));
-//   delay(100);
-//   ESP.restart();
-// }
+// 
 
 
 // //1 HTTP/1.1 -> 1
@@ -290,7 +286,8 @@
 #include <MFRC522.h>
 
 #define SS_PIN  5  // ESP32 pin GIOP5 
-#define RST_PIN 27 // ESP32 pin GIOP27 
+//#define RST_PIN 27 // ESP32 pin GIOP27 
+#define RST_PIN 21 
 
 #define UID_SIZE 4 //UID are going to be 4 long
 
@@ -299,13 +296,17 @@
 //#include <LittleFS.h>
 #include "SPIFFS.h"
 
+/* You only need to format SPIFFS the first time you run a
+   test or else use the SPIFFS plugin to create a partition
+   https://github.com/me−no−dev/arduino−esp32fs−plugin */
+#define FORMAT_SPIFFS_IF_FAILED true
+
 #define UID_PATH "/UID.txt"
 #define NAMES_PATH "/Names.txt"
 
 #define UID_PATH_TEMP "/UID_temp.txt"
 #define NAMES_PATH_TEMP "/Names_temp.txt"
 
-#define FORMAT_SPIFFS_IF_FAILED true
 
 //Variables for the SPIFFS file system
 
@@ -349,6 +350,8 @@ byte size_add_arr=0;
 // Variable to detect whether a new request occurred
 bool newRequest = false;
 
+char info_html[150];
+
 // HTML to build the web page
 const char index_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
@@ -359,11 +362,13 @@ const char index_html[] PROGMEM = R"rawliteral(
 </head>
 <body>
   <h1>Door Card List</h1>
-    <form action="/" method="POST">
+    <form action="/deleteButtonPressed" method="POST">
       <label for="steps">Delete Number:</label>
       <input type="text" name="num">
       <input type="submit" value="DELETE!">
-      <br><br><br>
+    </form>
+    <br><br><br>
+    <form action="/addButtonPressed" method="POST">
       <label for="steps">Add last card with Name:</label>
       <input type="text" name="fname">
       <input type="submit" value="ADD!">
@@ -373,8 +378,15 @@ const char index_html[] PROGMEM = R"rawliteral(
 )rawliteral";
 
 
+//
+//
+//*****************************FUNCTIONS DEFINITIONS**********************************************
+void restart(){
+  debugln("ESP Restarting...");
+  delay(100);
+  ESP.restart();
+}
 
-//*****************************FUNCTIONS DEFINITIONS**************************************
 //Convert char array to a number.
 int charArrToInt(char* arr, byte n){
   int r=0;
@@ -461,7 +473,7 @@ bool isValidUID(byte *UID){
   return r;
 }
 
-bool AddUser(byte *lastUnauthUID, char* arr, byte n){ 
+bool AddUser(byte *lastUnauthUID, char* arr, byte n){  //TODO: Fucntion depends on global value, doesn't make sense
   
   if(not newUnauthCard){
     debugln(F("No hay nuevo usuario que añadir"));
@@ -563,6 +575,76 @@ bool deleteUser(int del_n){
   return true;
 }
 
+//Creates list of names as well as the button to add last RFID card
+bool createResponse(AsyncResponseStream *response){
+  response->addHeader("Server","Añadir a alguien a la lista");
+  response->printf("<!DOCTYPE html><html><head><title>Añadir a alguien a la lista</title></head><body>");
+  response->print("<h1>Lista de personas con acceso: ");
+  response->print("</h1>");
+  response->print("</body></html>");
+  response->print("<pre style=\"font-size:20px;\">");
+
+  //Now the content in itself. We need to open the files to get the display of the data.
+  File memoryUID = SPIFFS.open(UID_PATH);
+  File memoryNAMES = SPIFFS.open(NAMES_PATH);
+
+  if(!memoryUID or !memoryNAMES){
+    debugln(F("- failed to open one file in createResponse"));
+    return false;
+  }
+
+  byte i = 0 ;
+  while(memoryUID.available() and memoryNAMES.available()){ 
+    //So, while the files are still unread
+    response->printf("%i  -  ",i+1);
+  
+    //Name to be readen
+    char l= 'a';  //letter of the name
+
+    while(memoryNAMES.available() and l !='\n'){ //If the character is not the delimitator
+      l = memoryNAMES.read();                    //Read a letter (char)
+      if(l=='+'){ //spaces are encoded as +
+        l=' ';  
+      }
+      if(l=='\n'){
+        l=' ';
+      }
+      response->print(l);
+      debug(l);
+    }
+    l=' '; //Reset condition for l
+    response->print("- ");
+  
+    byte currentByte;         //Byte of UID to be readen
+    byte nBytesRead=0;          //Counter
+    while (memoryUID.available() and nBytesRead < UID_SIZE) {
+      currentByte = memoryUID.read();
+      response->print(currentByte < 0x10 ? " 0" : " "); //Puts 0 in numbers like 2,9,B etc
+      response->print(currentByte, HEX);
+      nBytesRead++;
+    }
+    response->print("<br/>");
+    i++;
+  }
+  //When done with files, close them:
+  memoryUID.close();
+  memoryNAMES.close();
+  response -> print("</pre>");
+
+  return true;
+}
+
+//TODO complete add response
+bool finishAddResponse(AsyncResponseStream *response){
+
+  return true;
+}
+
+//TODO complete delete response
+bool finishDeleteResponse(AsyncResponseStream *response){
+
+  return true;
+}
 
 // Initialize WiFi
 void initWiFi() {
@@ -572,9 +654,14 @@ void initWiFi() {
   Serial.println(WiFi.softAPIP());
 }
 
-
 void setup() {
   Serial.begin(115200);
+
+  //Spiffs setup
+  if(!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)){
+    debugln(F("SPIFFS Mount Failed"));
+    restart();
+  }
 
   initWiFi();
 
@@ -584,15 +671,21 @@ void setup() {
   });
 
   server.on("/add", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send(200, "text/plain", "ADD from ESP32 server route");
+    AsyncResponseStream *response = request->beginResponseStream("text/html");
+    createResponse(response);
+    finishAddResponse(response);
+    request->send(response);
   });
 
   server.on("/delete", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send(200, "text/plain", "DELETE from ESP32 server route");
+    AsyncResponseStream *response = request->beginResponseStream("text/html");
+    createResponse(response);
+    finishDeleteResponse(response);
+    request->send(response);
   });
   
-  // Handle request (form)
-  server.on("/", HTTP_POST, [](AsyncWebServerRequest *request) {
+  // Handle request (form) of delete button in home page
+  server.on("/deleteButtonPressed", HTTP_POST, [](AsyncWebServerRequest *request) {
     int params = request->params();
     for(int i=0;i<params;i++){
       AsyncWebParameter* p = request->getParam(i);
@@ -608,31 +701,41 @@ void setup() {
           printArr(number_to_delete,size_delete_arr);
           debugln("First ");
           Data_Action = del;
-        } 
-        //If it's deleting someone, then don't add someone.
+        }
+      }
+    }
+    if(Data_Action == del){
+      request->redirect("/delete");
+    }else{
+      request->send(200, "text/html", index_html);
+    }
+    newRequest = true;
+    Data_Action = not_defined; //Reset value
+  });
+
+  //Now for when user presses add button in home page
+  server.on("/addButtonPressed", HTTP_POST, [](AsyncWebServerRequest *request) {
+    int params = request->params();
+    for(int i=0;i<params;i++){
+      AsyncWebParameter* p = request->getParam(i);
+      if(p->isPost()){
+        // Only adding matthers
         // HTTP POST input2 value (name)
         if (p->name() == PARAM_INPUT_2) {
           // name_to_add = p->value().c_str();
           p->value().toCharArray(name_to_add, BUFFER_SIZE);
           size_add_arr = p->value().length();
           printArr(name_to_add,size_add_arr);
-          // addStringToBuffer(p->value().c_str(),name_to_add) //TODO: delete if works
-          // Serial.print("Number of steps set to: ");
-          // Serial.println(steps);
           debugln("Second ");
           Data_Action = add;
         }
       }
     }
 
-    if(Data_Action == del){
-      request->redirect("/delete");
+    if(Data_Action == add){
+      request->redirect("/add");
     }else{
-      if(Data_Action == add){
-        request->redirect("/add");
-      }else{
-        request->send(200, "text/html", index_html);
-      }
+      request->send(200, "text/html", index_html);
     }
 
     newRequest = true;

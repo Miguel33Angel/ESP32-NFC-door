@@ -1,0 +1,3 @@
+Tarjeta+blanca
+Tarjeta+Universidad
+Tarjeta+Roja
