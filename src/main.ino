@@ -340,13 +340,13 @@ bool createResponse(AsyncResponseStream *response){
   fillResponseWithList(response);
   //Now the forms for adding or deleting people
   response->printf("<form action=\"/deleteButtonPressed\" method=\"POST\">");
-  response->printf("<label for=\"num\">Elimina n&uacutemero:</label>"); //Delete number:
+  response->printf("<label for=\"num\">Elimina n&uacutemero:<br></label>"); //Delete number:
   response->printf("<input type=\"text\" name=\"num\">");
   response->printf("<input type=\"submit\" value=\"Eliminar\">");
   response->printf("</form>");
   response->printf("<br><br>");
   response->printf("<form action=\"/addButtonPressed\" method=\"POST\">");
-  response->printf("<label for=\"fname\">A&ntildeade con nombre:</label>"); //Add last card with Name:
+  response->printf("<label for=\"fname\">A&ntildeade con nombre:<br></label>"); //Add last card with Name:
   response->printf("<input type=\"text\" name=\"fname\">");
   response->printf("<input type=\"submit\" value=\"Guardar\">");
   response->printf("</form>");
@@ -381,11 +381,8 @@ bool fillResponseWithList(AsyncResponseStream *response){
       if(l=='+'){ //spaces are encoded as +
         l=' ';  
       }
-      if(l=='\n'){
+      if(l=='\n'){ //endline at the end of every line, so it's needed to be 
         l=' ';
-        debug("Este mensaje se ha cort");
-        debug(l);
-        debug("ado porque hay un salto de linea");
       }
       response->print(l);
       // debug(l);
@@ -474,7 +471,7 @@ void setup() {
         }
       }
     }
-    request->redirect("/");
+    request->redirect("/delete");
     newRequest = true;
   });
 
@@ -496,7 +493,7 @@ void setup() {
         }
       }
     }
-    request->redirect("/");
+    request->redirect("/add");
     newRequest = true;
   });
 
