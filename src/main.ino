@@ -4,10 +4,7 @@
  * TODO: 
  * - Resolve small TODO in code
  * - Check full working conditions: Multiple cards, maximum amount of cards and time running without errors in days.
- * - Check if there's no Debug message residue from updating
  * This are improvements so low priority
- * - Change Web GUI. It's horribly small and should be more clear -> In progress
- * - Change Webserver handling. Code horrible to revise or refactor
  * - Change SPIFFS type of system to LITTELFS. It's just installing the library and changing all the SPIFFS.something o LITTELFS.something.
 */
 
@@ -86,8 +83,8 @@ AsyncWebServer server(80);
 const char* PARAM_INPUT_1 = "num";
 const char* PARAM_INPUT_2 = "fname";
 
-enum action {add, del, not_defined}; //add=0, del=1;
-enum action Data_Action;
+// enum action {add, del, not_defined}; //add=0, del=1;
+// enum action Data_Action;
 
 
 // Variables to save values from HTML form
@@ -96,8 +93,7 @@ char number_to_delete[BUFFER_SIZE];
 byte size_delete_arr=0;
 char name_to_add[BUFFER_SIZE];
 byte size_add_arr=0;
-// Variable to detect whether a new request occurred
-bool newRequest = false;
+
 
 char info_html[150];
 
@@ -222,12 +218,8 @@ bool isValidUID(byte *UID){
   return r;
 }
 
-bool addUser(byte *lastUnauthUID, char* arr, byte n){  //TODO: Fucntion depends on global value, doesn't make sense
-  
-  if(not newUnauthCard){
-    debugln(F("No hay nuevo usuario que añadir"));
-    return false;
-  }
+
+bool addUser(byte *lastUnauthUID, char* arr, byte n){  
   File memoryUID = SPIFFS.open(UID_PATH, FILE_APPEND);
   File memoryNAMES = SPIFFS.open(NAMES_PATH, FILE_APPEND);
 
@@ -242,12 +234,10 @@ bool addUser(byte *lastUnauthUID, char* arr, byte n){  //TODO: Fucntion depends 
   for(byte i=0;i<n;i++){
     memoryNAMES.write(arr[i]);
   }
-  memoryNAMES.print('\n');
+  memoryNAMES.print('\n');//Same as write(0D 0A)
 
   memoryUID.close();
   memoryNAMES.close();
-
-  newUnauthCard = false;
   
   return true;
 }
@@ -332,7 +322,7 @@ bool createResponse(AsyncResponseStream *response){
   response->printf("<title>Lista de tarjetas permitidas</title>"); //List of authorized cards.
   response->printf("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"></head><body>");
   response->print("<h1>Lista de personas con acceso: </h1>"); //<h1>Door Card List</h1>
-  //Now add all the list of people added:
+  // TODO: Now add all the list of people added:
   // if (!fillResponseWithList(response)){ //If there's an error then
   //   return false;
   // }
@@ -440,17 +430,8 @@ void setup() {
     AsyncResponseStream *response = request->beginResponseStream("text/html");
     createResponse(response);
     request->send(response);
-    // request->send(200, "text/html", index_html);
   });
 
-  server.on("/add", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send(200, "text/plain", "ADD from ESP32 server route");
-  });
-
-  server.on("/delete", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send(200, "text/plain", "DELETE from ESP32 server route");
-  });
-  
   // Handle request (form) of delete button in home page
   server.on("/deleteButtonPressed", HTTP_POST, [](AsyncWebServerRequest *request) {
     int params = request->params();
@@ -467,12 +448,11 @@ void setup() {
           size_delete_arr = p->value().length();
           printArr(number_to_delete,size_delete_arr);
           debugln("First ");
-          Data_Action = del;
+          deleteUser(charArrToInt(number_to_delete,size_delete_arr));
         }
       }
     }
-    request->redirect("/delete");
-    newRequest = true;
+    request->redirect("/");
   });
 
   //Now for when user presses add button in home page
@@ -489,12 +469,17 @@ void setup() {
           size_add_arr = p->value().length();
           printArr(name_to_add,size_add_arr);
           debugln("Second ");
-          Data_Action = add;
+          // Check if theres a new card before adding user.
+          if(newUnauthCard){
+            addUser(lastUnauthUID,name_to_add,size_add_arr);
+            newUnauthCard = false;
+          }else{
+            debugln(F("No hay nuevo usuario que añadir"));
+          }
         }
       }
     }
-    request->redirect("/add");
-    newRequest = true;
+    request->redirect("/");
   });
 
   server.begin();
@@ -507,25 +492,16 @@ void loop() {
     timer_set = false;
   }
   
-  if (newRequest){
-    if(Data_Action == del){
-      debugln("delete");
-      deleteUser(charArrToInt(number_to_delete,size_delete_arr));
-    }else if(Data_Action == add){
-      debugln("add");
-      addUser(lastUnauthUID,name_to_add,size_add_arr);
-    }
-    Data_Action = not_defined;
-    debugln("New request");
-    debugln("");
-    newRequest = false;
-  }
-
-
+  /* Normally here we would have a state machine to handle requests. 
+  In this case, the requests from user are handled when the exact parameter is sent by a POST method
+  This is because it's important to do a 
+  request->redirect("/");
+  AFTER the action of addind or deleting user is done. So in loop no request handling in needed.
+  Also, that's why newRequest boolean and Data_Action is no longer needed
+  */
 
   /* Reset the loop if no new card present on the sensor/reader. 
   This saves the entire process when idle.
-  Also, no need to change relay pin state if no new card is present, so it doesn't make sense to check both things
   */
   if ( ! rfid.PICC_IsNewCardPresent())
     return;
