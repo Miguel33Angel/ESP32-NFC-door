@@ -12,9 +12,6 @@
 */
 
 
-// 
-
-
 // //1 HTTP/1.1 -> 1
 // //Tarjeta+universidad HTTP/1.1 -> Tarjeta+universidad
 // //Gets array, lenght, n1 and deletes last n1 char. (9)
@@ -269,17 +266,14 @@
 // General includes
 #include <Arduino.h>
 
-// Includes for the Wifi access point
-#include <WiFi.h>
-#include <AsyncTCP.h>
-#include <ESPAsyncWebServer.h>
-
 //Defines for RELAY
 #define PIN_RELAY 4
+#define RELAY_MILLIS_DELAY 2000
 
-// #define DEL_LAST_CHAR 9
-// #define REFERER_FIRST_DATA_CHAR 28
-
+//Variables for the relay and it's time delay
+unsigned long time_since_high=0;
+unsigned long time_now=0;
+bool timer_set = false;
 
 // Includes for the NFC card reader
 #include <SPI.h>
@@ -290,6 +284,12 @@
 #define RST_PIN 21 
 
 #define UID_SIZE 4 //UID are going to be 4 long
+
+// Variables for the NFC card reader
+MFRC522 rfid(SS_PIN, RST_PIN);
+
+byte lastUnauthUID[UID_SIZE] = {0x00, 0x00, 0x00, 0x00};
+bool newUnauthCard = false;
 
 //Includes for using the Flash memory
 #include "FS.h"
@@ -307,8 +307,10 @@
 #define UID_PATH_TEMP "/UID_temp.txt"
 #define NAMES_PATH_TEMP "/Names_temp.txt"
 
-
-//Variables for the SPIFFS file system
+// Includes for the Wifi access point
+#include <WiFi.h>
+#include <AsyncTCP.h>
+#include <ESPAsyncWebServer.h>
 
 // Variables for the Wifi access point
 // Replace with your network credentials
@@ -327,18 +329,6 @@ const char* PARAM_INPUT_2 = "fname";
 
 enum action {add, del, not_defined}; //add=0, del=1;
 enum action Data_Action;
-
-// Variables for the NFC card reader
-MFRC522 rfid(SS_PIN, RST_PIN);
-
-byte lastUnauthUID[UID_SIZE] = {0x00, 0x00, 0x00, 0x00};
-bool newUnauthCard = false;
-
-//V2 auto-check;
-// byte VersionRFID=0;
-// unsigned long  last_time_checked=0;
-// unsigned long now=0;
-
 
 
 // Variables to save values from HTML form
@@ -577,12 +567,38 @@ bool deleteUser(int del_n){
 
 //Creates list of names as well as the button to add last RFID card
 bool createResponse(AsyncResponseStream *response){
-  response->addHeader("Server","Añadir a alguien a la lista");
-  response->printf("<!DOCTYPE html><html><head><title>Añadir a alguien a la lista</title></head><body>");
-  response->print("<h1>Lista de personas con acceso: ");
-  response->print("</h1>");
+  //Filler text is in spanish cause the users will be spanish, but translation is commented next to it
+  response->addHeader("Server","Lista de tarjetas permitidas"); //List of authorized cards.
+  response->printf("<!DOCTYPE html><html><head>");
+  response->printf("<title>Lista de tarjetas permitidas</title>"); //List of authorized cards.
+  response->printf("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"></head><body>");
+  response->print("<h1>Lista de personas con acceso: </h1>"); //<h1>Door Card List</h1>
+  //Now add all the list of people added:
+  // if (!fillResponseWithList(response)){ //If there's an error then
+  //   return false;
+  // }
+
+  fillResponseWithList(response);
+  //Now the forms for adding or deleting people
+  response->printf("<form action=\"/deleteButtonPressed\" method=\"POST\">");
+  response->printf("<label for=\"num\">Elimina número:</label>"); //Delete number:
+  response->printf("<input type=\"text\" name=\"num\">");
+  response->printf("<input type=\"submit\" value=\"DELETE!\">");
+  response->printf("</form>");
+  response->printf("<br><br><br>");
+  response->printf("<form action=\"/addButtonPressed\" method=\"POST\">");
+  response->printf("<label for=\"fname\">Añade la última tarjeta leida con nombre:</label>"); //Add last card with Name:
+  response->printf("<input type=\"text\" name=\"fname\">");
+  response->printf("<input type=\"submit\" value=\"ADD!\">");
+  response->printf("</form>");
+  
   response->print("</body></html>");
-  response->print("<pre style=\"font-size:20px;\">");
+  return true;
+}
+
+//Fill response to be sent with list of auth cards
+bool fillResponseWithList(AsyncResponseStream *response){
+  response->print("<pre style=\"font-size:40px;\">");
 
   //Now the content in itself. We need to open the files to get the display of the data.
   File memoryUID = SPIFFS.open(UID_PATH);
@@ -630,21 +646,14 @@ bool createResponse(AsyncResponseStream *response){
   memoryUID.close();
   memoryNAMES.close();
   response -> print("</pre>");
-
   return true;
 }
 
 //TODO complete add response
-bool finishAddResponse(AsyncResponseStream *response){
-
-  return true;
-}
-
-//TODO complete delete response
-bool finishDeleteResponse(AsyncResponseStream *response){
-
-  return true;
-}
+// bool finishAddResponse(AsyncResponseStream *response){
+//
+//   return true;
+// }
 
 // Initialize WiFi
 void initWiFi() {
@@ -657,14 +666,22 @@ void initWiFi() {
 void setup() {
   Serial.begin(115200);
 
+  pinMode(PIN_RELAY, OUTPUT);
+  digitalWrite(PIN_RELAY, LOW);
+
   //Spiffs setup
   if(!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)){
     debugln(F("SPIFFS Mount Failed"));
     restart();
   }
 
-  initWiFi();
+  //NFC setup
+  SPI.begin(); // init SPI bus
+  rfid.PCD_Init(); // init MFRC522
+  debugln(F("Tap RFID/NFC Tag on reader"));
 
+  //Wifi init
+  initWiFi();
   // Web Server Root URL
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send(200, "text/html", index_html);
@@ -673,14 +690,12 @@ void setup() {
   server.on("/add", HTTP_GET, [](AsyncWebServerRequest *request){
     AsyncResponseStream *response = request->beginResponseStream("text/html");
     createResponse(response);
-    finishAddResponse(response);
     request->send(response);
   });
 
   server.on("/delete", HTTP_GET, [](AsyncWebServerRequest *request){
     AsyncResponseStream *response = request->beginResponseStream("text/html");
     createResponse(response);
-    finishDeleteResponse(response);
     request->send(response);
   });
   
@@ -746,6 +761,41 @@ void setup() {
 }
 
 void loop() {
+  time_now = millis();
+  if(time_now > time_since_high + RELAY_MILLIS_DELAY and timer_set){
+    digitalWrite(PIN_RELAY, LOW);    // turn the LED off by making the voltage LOW
+    timer_set = false;
+  }
+  
+  /* Reset the loop if no new card present on the sensor/reader. 
+  This saves the entire process when idle.
+  Also, no need to change relay pin state if no new card is present, so it doesn't make sense to check both things
+  */
+  if ( ! rfid.PICC_IsNewCardPresent())
+    return;
+
+  // Select one of the cards
+  if ( ! rfid.PICC_ReadCardSerial())
+    return;
+
+  if(isValidUID(rfid.uid.uidByte)){
+    // Serial.print(F("gOOD"));
+    debug(F("Authorized Tag with UID:"));
+    digitalWrite(PIN_RELAY, HIGH);   // turn the LED on (HIGH is the voltage level)
+    //And start timer:
+    timer_set = true;
+    time_since_high = millis();
+    // It will be down when RELAY_MILLIS_DELAY millis will pass (2000)
+  }else{
+    debug(F("Unauthorized Tag with UID:"));
+    for (byte i=0;i<UID_SIZE;i++){ //Save the uid in lastUnauthUID
+      lastUnauthUID[i] = rfid.uid.uidByte[i];
+      }
+    newUnauthCard = true;
+  }
+
+
+  
   // Check if there was a new request and move the stepper accordingly
   if (newRequest){
     // if (direction == "CW"){
@@ -762,6 +812,8 @@ void loop() {
     debugln("");
     newRequest = false;
   }
+
+
 
 
 
