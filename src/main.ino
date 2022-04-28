@@ -11,247 +11,6 @@
  * - Change SPIFFS type of system to LITTELFS. It's just installing the library and changing all the SPIFFS.something o LITTELFS.something.
 */
 
-
-// //1 HTTP/1.1 -> 1
-// //Tarjeta+universidad HTTP/1.1 -> Tarjeta+universidad
-// //Gets array, lenght, n1 and deletes last n1 char. (9)
-// byte deleteLastCharOfArr(char* arr, byte n, byte last_char){
-//   byte j=0;
-//   for(byte i=0; i<n; i++){
-//     if(i<(n-last_char)){
-//         //arr[j]=arr[i]; As I'm not deleting elements, just making list shorter this is not needed.
-//         j++;
-//       }
-//   }
-//   n=j;
-//   return n;
-// }
-  
-
-
-// //********************************************************************************************************
-
-// void setup() {
-//   pinMode(PIN_RELAY, OUTPUT);
-//   digitalWrite(PIN_RELAY, LOW);
-//   if (DEBUG == 1){
-//     Serial.begin(115200);
-//   }
-
-//   //Spiffs setup
-//   if(!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)){
-//     debugln(F("SPIFFS Mount Failed"));
-//     restart();
-//   }
-
-//   //Wi-Fi
-//   debugln();
-//   debugln(F("Configuring access point..."));
-  
-//   // You can remove the password parameter if you want the AP to be open.
-//   WiFi.softAP(ssid, password);
-//   IPAddress myIP = WiFi.softAPIP();
-//   debug(F("AP IP address: "));
-//   debugln(myIP);
-//   server.begin();
-
-//   debugln(F("Server started"));
-
-//   //Now, do the NFC
-  
-//   SPI.begin(); // init SPI bus
-//   rfid.PCD_Init(); // init MFRC522
-//   debugln(F("Tap RFID/NFC Tag on reader"));
-
-// }
-
-// void loop() {
-//   now = millis();
-//   if(now - last_time_checked>14400000){ //3600000
-//     //If more than 60 minutes has passed, then restart
-//     rfid.PCD_PerformSelfTest();
-//     last_time_checked = millis();
-//   }
-
-// //  if(now - last_time_checked>115200000){ //3600000
-// //    //If more than 60 minutes has passed, then restart
-// //    restart();
-// //    last_time_checked = millis();
-// //  }
-
-  
-//   //Priority is to read the NFC cards, in case a auth card get's readed.
-//   //If unauth, then it should be saved in case we want to save it
-//   if (rfid.PICC_IsNewCardPresent()) {   // if new tag is available
-//     if (rfid.PICC_ReadCardSerial()) {   // and if NUID has been readed
-//       if(isValidUID(rfid.uid.uidByte)){ //It's an AUTH UID:
-//         debug(F("Authorized Tag with UID:"));
-//         //TODO: Do Relay control with other core.
-//         digitalWrite(PIN_RELAY, HIGH);   // turn the LED on (HIGH is the voltage level)
-//         delay(2000);                       // wait for a second
-//         digitalWrite(PIN_RELAY, LOW);    // turn the LED off by making the voltage LOW
-//       }else{                             //It's an UNAUTH UID:
-//         debug(F("Unauthorized Tag with UID:"));
-//         for (byte i=0;i<UID_SIZE;i++){ //Save the uid in lastUnauthUID
-//           lastUnauthUID[i] = rfid.uid.uidByte[i];
-//           }
-//         newUnauthCard = true;
-//       }
-
-//       //Print the uid readed
-//       printHex(rfid.uid.uidByte);
-//       debugln();
-      
-//       rfid.PICC_HaltA(); // halt PICC
-//       rfid.PCD_StopCrypto1(); // stop encryption on PCD
-//     }
-//   }else{
-//     //Now listen for incoming clients
-//     WiFiClient client = server.available();  
-//     if (client) {                             // if you get a client,
-//       debugln(F("New Client."));
-//       // currentLineBuffer-> make a String to hold incoming data from the client
-//       nCurrent = 0; //This makes currentLine to be empty
-//       while (client.connected()) {            // loop while the client's connected
-//         if (client.available()) {             // if there's bytes to read from the client,
-//           char c = client.read();             // read a byte, then
-//           // debug(c);                    // print it out the serial monitor
-//           if (c == '\n') {                    // if the byte is a newline character
-
-//             // if the current line is blank, you got two newline characters in a row.
-//             // that's the end of the client HTTP request, so send a response:
-//             if (nCurrent == 0) {
-//               // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
-//               // and a content-type so the client knows what's coming, then a blank line:
-//               client.println(F("HTTP/1.1 200 OK"));
-//               client.println(F("Content-type:text/html"));
-//               client.println();
-//               // the content of the HTTP response follows the header:
-            
-//               // Pre makes so spaces are still saved. Style makes so the font is bigger.
-//               client.print(F("<pre style=\"font-size:20px;\">"));
-            
-//               //Now the content in itself. We need to open the files to get the display of the data.
-//               File memoryUID = SPIFFS.open(UID_PATH, FILE_READ);
-//               File memoryNAMES = SPIFFS.open(NAMES_PATH, FILE_READ);
-
-//               if(!memoryUID or !memoryNAMES){
-//                 debugln(F("- failed to open one file"));
-//                 restart();
-//               }
-            
-//               byte i = 0 ;
-//               while(memoryUID.available() and memoryNAMES.available()){ 
-//                 //So, while the files are still unread
-//                 client.print(i+1);
-//                 client.print(F("  -  "));
-              
-//                 //Name to be readen
-//                 nCurrent = 0; //Makes current empty
-
-//                 char l= 'a';  //letter of the name
-
-//                 while(memoryNAMES.available() and l !='\n'){ //If the character is not the delimitator
-//                   l = memoryNAMES.read();                    //Read a letter (char)
-//                   if(l=='+'){
-//                     l=' ';  
-//                   }
-//                   nCurrent = addChar(bufferCurrentLine,nCurrent,l);//Add it to the current Name
-//                 }
-//                 l=' '; //Reset condition for l
-//                 for(byte j=0;j<nCurrent-1;j++){//-1 because nCurrent has the \n
-//                   client.print(bufferCurrentLine[j]);
-//                 }
-//                 client.print(F(" - "));
-              
-//                 byte currentByte;         //Byte of UID to be readen
-//                 byte nBytesRead=0;          //Counter
-//                 while (memoryUID.available() and nBytesRead < UID_SIZE) {
-//                   currentByte = memoryUID.read();
-//                   client.print(currentByte < 0x10 ? " 0" : " "); //Puts 0 in numbers like 2,9,B etc
-//                   client.print(currentByte, HEX);
-//                   nBytesRead++;
-//                 }
-//                 client.print(F("<br/>"));
-//                 i++;
-//               }
-//               //When done with files, close them:
-//               memoryUID.close();
-//               memoryNAMES.close();
-            
-//               client.print(F("</pre>"));
-            
-//               //Input for adding a new UID
-//               //Input for deleting a existing UID
-//               client.print(F("<form action=\"http://192.168.4.1/Send_Data/\">"
-//               "<label style=\"font-size:25px;\"  for=\"fname\">Add with Name: </label>" 
-//               "<input style=\"font-size:20px;\"  type=\"text\" id=\"fname\" name=\"fname\">"
-//               "<input style=\"font-size:20px;\"  type=\"submit\" value=\"Add\"> </form>"));
-//               client.print(F("<form action=\"http://192.168.4.1/Delete_Data/\">"
-//               "<label style=\"font-size:25px;\"  for=\"num\">Delete number: </label>" 
-//               "<input style=\"font-size:20px;\"  type=\"text\" id=\"num\" name=\"num\">"
-//               "<input style=\"font-size:20px;\"  type=\"submit\" value=\"Delete\"> </form>"));
-
-//               // The HTTP response ends with another blank line:
-//               client.println();
-//               // break out of the while loop:
-//               break;
-//             } else {    // if you got a newline, then clear currentLine and savedData (in case we are saving data):
-//               if (saveNextData){ //If this is true, it's because we got a response from the phone saying "GET /Send_Data/_somedata_" and we want to use _somedata_
-//                 if (Data_Action==add){
-//                   nSaved = deleteLastCharOfArr(bufferSavedData,nSaved,DEL_LAST_CHAR);
-//                   printHex(lastUnauthUID);
-//                   AddUser(lastUnauthUID, bufferSavedData, nSaved);
-//                   saveNextData = false;
-                
-//                 }else if (Data_Action==del){
-//                   nSaved = deleteLastCharOfArr(bufferSavedData,nSaved,DEL_LAST_CHAR);
-//                   deleteUser(charArrToInt(bufferSavedData,nSaved));
-//                 }
-              
-//                 saveNextData = false; //Finish saving the message.
-//                 nSaved = 0; //Delete it after used
-//               }
-//               nCurrent = 0;
-//             }
-//           } else if (c != '\r') {  // if you got anything else but a carriage return character,
-//             nCurrent = addChar(bufferCurrentLine, nCurrent, c);      // add it to the end of the currentLine
-//             if(saveNextData){      // and to savedData, in case we are interested
-//               nSaved = addChar(bufferSavedData, nSaved, c);
-//             }
-//           }
-            
-//           if (ArrIsString(bufferCurrentLine,nCurrent,"GET /Send_Data/?fname=")){ 
-//             //Start to save the data incomming until you get the whole message
-//             saveNextData = true;
-//             Data_Action = add;
-          
-//           }else if (ArrIsString(bufferCurrentLine,nCurrent,"GET /Delete_Data/?num=")){
-//             //Start to save the data incomming until you get the whole message
-//             saveNextData = true; 
-//             Data_Action = del;
-//           }
-        
-//         }
-//       }//End While client is connected
-//       // close the connection:
-//       client.stop();
-//       debugln(F("Client Disconnected."));
-//     }
-//   }
-// }
-
-/*
-  Rui Santos
-  Complete project details at https://RandomNerdTutorials.com/stepper-motor-esp32-web-server/
-  
-  Permission is hereby granted, free of charge, to any person obtaining a copy
-  of this software and associated documentation files.
-  
-  The above copyright notice and this permission notice shall be included in all
-  copies or substantial portions of the Software.
-*/
-
 // Debug definitions
 #define DEBUG 1
 
@@ -463,7 +222,7 @@ bool isValidUID(byte *UID){
   return r;
 }
 
-bool AddUser(byte *lastUnauthUID, char* arr, byte n){  //TODO: Fucntion depends on global value, doesn't make sense
+bool addUser(byte *lastUnauthUID, char* arr, byte n){  //TODO: Fucntion depends on global value, doesn't make sense
   
   if(not newUnauthCard){
     debugln(F("No hay nuevo usuario que añadir"));
@@ -581,15 +340,15 @@ bool createResponse(AsyncResponseStream *response){
   fillResponseWithList(response);
   //Now the forms for adding or deleting people
   response->printf("<form action=\"/deleteButtonPressed\" method=\"POST\">");
-  response->printf("<label for=\"num\">Elimina número:</label>"); //Delete number:
+  response->printf("<label for=\"num\">Elimina n&uacutemero:</label>"); //Delete number:
   response->printf("<input type=\"text\" name=\"num\">");
-  response->printf("<input type=\"submit\" value=\"DELETE!\">");
+  response->printf("<input type=\"submit\" value=\"Eliminar\">");
   response->printf("</form>");
-  response->printf("<br><br><br>");
+  response->printf("<br><br>");
   response->printf("<form action=\"/addButtonPressed\" method=\"POST\">");
-  response->printf("<label for=\"fname\">Añade la última tarjeta leida con nombre:</label>"); //Add last card with Name:
+  response->printf("<label for=\"fname\">A&ntildeade con nombre:</label>"); //Add last card with Name:
   response->printf("<input type=\"text\" name=\"fname\">");
-  response->printf("<input type=\"submit\" value=\"ADD!\">");
+  response->printf("<input type=\"submit\" value=\"Guardar\">");
   response->printf("</form>");
   
   response->print("</body></html>");
@@ -598,7 +357,7 @@ bool createResponse(AsyncResponseStream *response){
 
 //Fill response to be sent with list of auth cards
 bool fillResponseWithList(AsyncResponseStream *response){
-  response->print("<pre style=\"font-size:40px;\">");
+  response->print("<pre style=\"font-size:15px;\">");
 
   //Now the content in itself. We need to open the files to get the display of the data.
   File memoryUID = SPIFFS.open(UID_PATH);
@@ -624,12 +383,15 @@ bool fillResponseWithList(AsyncResponseStream *response){
       }
       if(l=='\n'){
         l=' ';
+        debug("Este mensaje se ha cort");
+        debug(l);
+        debug("ado porque hay un salto de linea");
       }
       response->print(l);
-      debug(l);
+      // debug(l);
     }
     l=' '; //Reset condition for l
-    response->print("- ");
+    response->print(" - ");
   
     byte currentByte;         //Byte of UID to be readen
     byte nBytesRead=0;          //Counter
@@ -648,12 +410,6 @@ bool fillResponseWithList(AsyncResponseStream *response){
   response -> print("</pre>");
   return true;
 }
-
-//TODO complete add response
-// bool finishAddResponse(AsyncResponseStream *response){
-//
-//   return true;
-// }
 
 // Initialize WiFi
 void initWiFi() {
@@ -684,19 +440,18 @@ void setup() {
   initWiFi();
   // Web Server Root URL
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send(200, "text/html", index_html);
+    AsyncResponseStream *response = request->beginResponseStream("text/html");
+    createResponse(response);
+    request->send(response);
+    // request->send(200, "text/html", index_html);
   });
 
   server.on("/add", HTTP_GET, [](AsyncWebServerRequest *request){
-    AsyncResponseStream *response = request->beginResponseStream("text/html");
-    createResponse(response);
-    request->send(response);
+    request->send(200, "text/plain", "ADD from ESP32 server route");
   });
 
   server.on("/delete", HTTP_GET, [](AsyncWebServerRequest *request){
-    AsyncResponseStream *response = request->beginResponseStream("text/html");
-    createResponse(response);
-    request->send(response);
+    request->send(200, "text/plain", "DELETE from ESP32 server route");
   });
   
   // Handle request (form) of delete button in home page
@@ -719,13 +474,8 @@ void setup() {
         }
       }
     }
-    if(Data_Action == del){
-      request->redirect("/delete");
-    }else{
-      request->send(200, "text/html", index_html);
-    }
+    request->redirect("/");
     newRequest = true;
-    Data_Action = not_defined; //Reset value
   });
 
   //Now for when user presses add button in home page
@@ -746,15 +496,8 @@ void setup() {
         }
       }
     }
-
-    if(Data_Action == add){
-      request->redirect("/add");
-    }else{
-      request->send(200, "text/html", index_html);
-    }
-
+    request->redirect("/");
     newRequest = true;
-    Data_Action = not_defined; //Reset value
   });
 
   server.begin();
@@ -767,6 +510,22 @@ void loop() {
     timer_set = false;
   }
   
+  if (newRequest){
+    if(Data_Action == del){
+      debugln("delete");
+      deleteUser(charArrToInt(number_to_delete,size_delete_arr));
+    }else if(Data_Action == add){
+      debugln("add");
+      addUser(lastUnauthUID,name_to_add,size_add_arr);
+    }
+    Data_Action = not_defined;
+    debugln("New request");
+    debugln("");
+    newRequest = false;
+  }
+
+
+
   /* Reset the loop if no new card present on the sensor/reader. 
   This saves the entire process when idle.
   Also, no need to change relay pin state if no new card is present, so it doesn't make sense to check both things
@@ -779,7 +538,6 @@ void loop() {
     return;
 
   if(isValidUID(rfid.uid.uidByte)){
-    // Serial.print(F("gOOD"));
     debug(F("Authorized Tag with UID:"));
     digitalWrite(PIN_RELAY, HIGH);   // turn the LED on (HIGH is the voltage level)
     //And start timer:
@@ -794,27 +552,14 @@ void loop() {
     newUnauthCard = true;
   }
 
+  //Print the uid readed
+  printHex(rfid.uid.uidByte);
+  debugln(" ");
 
-  
-  // Check if there was a new request and move the stepper accordingly
-  if (newRequest){
-    // if (direction == "CW"){
-    //   // Spin the stepper clockwise direction
-    //   //myStepper.step(steps.toInt());
-    //   Serial.println("CW Direccion");
-    // }
-    // else{
-    //   // Spin the stepper counterclockwise direction
-    //   //myStepper.step(-steps.toInt());
-    //   Serial.println("La otra Direccion");
-    // }
-    debugln("New request");
-    debugln("");
-    newRequest = false;
-  }
+  // Halt PICC _________
+  rfid.PICC_HaltA();
 
-
-
-
+  // Stop encryption on PCD
+  rfid.PCD_StopCrypto1();
 
 }
