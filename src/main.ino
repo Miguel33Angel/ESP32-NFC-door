@@ -9,7 +9,7 @@
 */
 
 // Debug definitions
-#define DEBUG 1
+#define DEBUG 0
 
 #if DEBUG == 1
 #define debug(x) Serial.print(x)
@@ -72,9 +72,6 @@ bool newUnauthCard = false;
 // Replace with your network credentials
 const char* ssid = "yourSSIDname";
 const char* password = "yourpassword";
-
-// const char *ssid = "San Pedro";
-// const char *password = "Sergiopass";
 
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
